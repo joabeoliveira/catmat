@@ -26,6 +26,7 @@ export interface BuscaResultado {
   filtrosSugeridos?: {
     grupos: number[]
     classes: number[]
+    pdms?: number[]
   }
 }
 
