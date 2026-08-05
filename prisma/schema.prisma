@@ -1,0 +1,126 @@
+// prisma/schema.prisma
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tabela principal do CATMAT
+model CatmatItem {
+  codigoItem              Int     @id @unique
+  codigoGrupo             Int
+  nomeGrupo               String
+  codigoClasse            Int
+  nomeClasse              String
+  codigoPdm               Int
+  nomePdm                 String
+  descricaoItem           String  @db.Text
+  codigoNcm               String?
+  aplicaMargemPreferencia Boolean @default(false)
+  dataHoraAtualizacao     DateTime
+  
+  // Relacionamentos
+  compras                 CompraItem[]
+
+  @@index([codigoGrupo])
+  @@index([codigoClasse])
+  @@index([codigoPdm])
+  @@index([descricaoItem])
+  @@index([nomePdm])
+}
+
+model CatserItem {
+  codigoItem          Int     @id @unique
+  codigoGrupo         Int
+  nomeGrupo           String
+  codigoClasse        String
+  nomeClasse          String
+  codigoServico       Int
+  nomeServico         String
+  statusServico       Boolean @default(false)
+
+  @@index([codigoGrupo])
+  @@index([codigoClasse])
+  @@index([codigoServico])
+  @@index([nomeServico])
+}
+
+// Cache de compras da API do governo
+model CompraItem {
+  id               String   @id @default(cuid())
+  idCompra         Int      @map("id_compra")
+  idItemCompra     Int      @map("id_item_compra")
+  numeroItemCompra Int      @map("numero_item_compra")
+  codigoItemCatalogo Int    @map("codigo_item_catalogo")
+  
+  // Dados da compra
+  dataCompra       DateTime @map("data_compra")
+  dataResultado    DateTime? @map("data_resultado")
+  modalidade       Int?
+  forma            String?
+  criterioJulgamento String?
+  
+  // Fornecedor
+  niFornecedor     String?  @map("ni_fornecedor")
+  nomeFornecedor   String?  @map("nome_fornecedor")
+  
+  // Quantidades e preços
+  quantidade       Float
+  precoUnitario    Float    @map("preco_unitario")
+  percentualMaiorDesconto Float? @map("percentual_maior_desconto")
+  
+  // Unidades
+  siglaUnidadeFornecimento String? @map("sigla_unidade_fornecimento")
+  nomeUnidadeFornecimento String? @map("nome_unidade_fornecimento")
+  capacidadeUnidadeFornecimento Float? @map("capacidade_unidade_fornecimento")
+  siglaUnidadeMedida String? @map("sigla_unidade_medida")
+  
+  // UASG
+  codigoUasg       String?  @map("codigo_uasg")
+  nomeUasg         String?  @map("nome_uasg")
+  codigoOrgao      Int?     @map("codigo_orgao")
+  nomeOrgao        String?  @map("nome_orgao")
+  
+  // Localização
+  estado           String?
+  codigoMunicipio  Int?     @map("codigo_municipio")
+  municipio        String?
+  poder            String?
+  esfera           String?
+  
+  // Datas de atualização
+  dataAtualizacaoFato DateTime @map("data_atualizacao_fato")
+  dataHoraAtualizacaoCompra DateTime? @map("data_hora_atualizacao_compra")
+  dataHoraAtualizacaoItem DateTime? @map("data_hora_atualizacao_item")
+  dataHoraAtualizacaoUasg DateTime? @map("data_hora_atualizacao_uasg")
+  
+  // Campos adicionais
+  objetoCompra     String?  @db.Text @map("objeto_compra")
+  descricaoDetalhadaItem String? @db.Text @map("descricao_detalhada_item")
+  marca            String?
+  idCompraItem     String?  @map("id_compra_item")
+  
+  // Relacionamentos
+  catmatItem       CatmatItem @relation(fields: [codigoItemCatalogo], references: [codigoItem])
+  
+  @@map("compras_item")
+  @@unique([idCompra, idItemCompra])
+  @@index([codigoItemCatalogo])
+  @@index([dataCompra])
+  @@index([codigoUasg])
+  @@index([dataAtualizacaoFato])
+}
+
+// Cache de busca (para otimizar consultas fuzzy)
+model BuscaCache {
+  id          String   @id @default(cuid())
+  termo       String   @unique
+  resultados  Json     // Armazena os IDs dos itens
+  criadoEm    DateTime @default(now())
+  expiraEm    DateTime
+}
