@@ -15,8 +15,8 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Garante a existência da pasta public exigida pelo runner
-RUN mkdir -p ./public
+# Garante a existencia das pastas exigidas pelo runner
+RUN mkdir -p ./public ./dados
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
@@ -40,8 +40,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/dados ./dados
 COPY --from=builder /app/scripts ./scripts
+RUN mkdir -p ./dados
 
 RUN ./node_modules/.bin/prisma generate
 RUN ./node_modules/.bin/prisma db push --skip-generate || echo "db push ignorado (sem banco)"
