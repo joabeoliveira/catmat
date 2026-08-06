@@ -1,6 +1,31 @@
+import type { Metadata } from 'next'
 import { BuscaAvancada } from '@/components/shared/BuscaAvancada'
+import { CatmatService } from '@/features/catmar/catmat.service'
 
-export default function HomePage() {
+interface HomePageProps {
+  searchParams?: { q?: string; grupo?: string; classe?: string; pagina?: string }
+}
+
+export async function generateMetadata({ searchParams }: HomePageProps): Promise<Metadata> {
+  const q = searchParams?.q?.trim()
+  if (!q) {
+    return {
+      title: 'Consulta CATMAT — Catálogo de Materiais e Preços Públicos',
+      description: 'Pesquise materiais CATMAT com compatibilidade, grade de cotação e filtros públicos.',
+    }
+  }
+
+  return {
+    title: `Resultados para "${q}" — CATMAT`,
+    description: `Resultados de busca para ${q} no catálogo CATMAT.`,
+  }
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const service = new CatmatService()
+  const q = searchParams?.q?.trim() || ''
+  const initialResults = q ? await service.buscarItens({ termo: q, pagina: Number(searchParams?.pagina || 1), limite: 4 }) : null
+
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -12,7 +37,7 @@ export default function HomePage() {
           </p>
         </section>
 
-        <BuscaAvancada />
+        <BuscaAvancada initialResults={initialResults} />
       </div>
     </main>
   )

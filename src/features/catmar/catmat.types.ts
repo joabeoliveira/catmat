@@ -18,17 +18,32 @@ export interface BuscaParams {
   limite?: number
 }
 
+export interface FiltroFacetado {
+  codigo: number
+  nome: string
+  quantidade: number
+}
+
+export interface ContagensCompatibilidade {
+  exato: number
+  alta: number
+  similar: number
+}
+
 export interface BuscaResultado {
   items: CatmatItem[]
   total: number
   pagina: number
   totalPaginas: number
   filtrosSugeridos?: {
-    grupos: number[]
-    classes: number[]
-    pdms?: number[]
+    grupos: FiltroFacetado[]
+    classes: FiltroFacetado[]
+    pdms?: FiltroFacetado[]
   }
+  contagens?: ContagensCompatibilidade
 }
 
-// Mantém compatibilidade sem referência direta a `prisma`.
-export type BuscaItem = CatmatItem;
+export interface BuscaItem extends CatmatItem {
+  compatibilidade?: number
+  faixa?: 'exato' | 'alta' | 'similar'
+}

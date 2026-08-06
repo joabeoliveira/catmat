@@ -2,7 +2,7 @@
 
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x", "windows"]
 }
 
 datasource db {
@@ -23,6 +23,7 @@ model CatmatItem {
   codigoNcm               String?
   aplicaMargemPreferencia Boolean @default(false)
   dataHoraAtualizacao     DateTime
+  tsv                     Unsupported("tsvector")?
   
   // Relacionamentos
   compras                 CompraItem[]
@@ -116,11 +117,3 @@ model CompraItem {
   @@index([dataAtualizacaoFato])
 }
 
-// Cache de busca (para otimizar consultas fuzzy)
-model BuscaCache {
-  id          String   @id @default(cuid())
-  termo       String   @unique
-  resultados  Json     // Armazena os IDs dos itens
-  criadoEm    DateTime @default(now())
-  expiraEm    DateTime
-}

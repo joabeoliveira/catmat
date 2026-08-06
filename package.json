@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "seed:csv": "node ./scripts/seed-from-csv.mjs",
+    "db:search-setup": "psql \"$DATABASE_URL\" -f prisma/sql/001_fts_trgm.sql",
     "postinstall": "prisma generate"
   },
   "dependencies": {

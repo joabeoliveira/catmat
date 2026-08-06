@@ -1,6 +1,7 @@
+import { Prisma, PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { catmatMockData, type CatmatItemSeed } from './mock-data'
-import type { BuscaFiltros, BuscaParams, BuscaResultado } from './catmat.types'
+import type { BuscaFiltros, BuscaParams, BuscaResultado, BuscaItem, FiltroFacetado, ContagensCompatibilidade } from './catmat.types'
 
 interface PrismaCatmatRow {
   codigoItem: number
@@ -14,10 +15,17 @@ interface PrismaCatmatRow {
   codigoNcm: string | null
   aplicaMargemPreferencia: boolean
   dataHoraAtualizacao: Date
+  score?: number | null
+  compatibilidade?: number | null
+  faixa?: 'exato' | 'alta' | 'similar'
 }
 
-function toSeed(row: PrismaCatmatRow): CatmatItemSeed {
-  return {
+type CatmatItemParaBusca = Omit<CatmatItemSeed, 'dataHoraAtualizacao'> & Partial<BuscaItem> & {
+  dataHoraAtualizacao: string
+}
+
+function toSeed(row: PrismaCatmatRow): CatmatItemParaBusca {
+  const item = {
     codigoItem: row.codigoItem,
     codigoGrupo: row.codigoGrupo,
     nomeGrupo: row.nomeGrupo,
@@ -32,30 +40,12 @@ function toSeed(row: PrismaCatmatRow): CatmatItemSeed {
       ? row.dataHoraAtualizacao.toISOString()
       : String(row.dataHoraAtualizacao),
   }
-}
 
-function buildWhere(params: BuscaParams) {
-  const termo = String(params.termo || '').trim()
-  const where: Record<string, unknown> = {}
-
-  if (termo) {
-    where.OR = [
-      { descricaoItem: { contains: termo, mode: 'insensitive' } },
-      { nomePdm: { contains: termo, mode: 'insensitive' } },
-      { nomeClasse: { contains: termo, mode: 'insensitive' } },
-      { nomeGrupo: { contains: termo, mode: 'insensitive' } },
-    ]
+  return {
+    ...item,
+    compatibilidade: row.compatibilidade ?? undefined,
+    faixa: row.faixa,
   }
-
-  const filtros: BuscaFiltros = params.filtros ?? {}
-  if (filtros.codigoGrupo?.length) where.codigoGrupo = { in: filtros.codigoGrupo }
-  if (filtros.codigoClasse?.length) where.codigoClasse = { in: filtros.codigoClasse }
-  if (filtros.codigoPdm?.length) where.codigoPdm = { in: filtros.codigoPdm }
-  if (filtros.aplicaMargemPreferencia !== undefined) {
-    where.aplicaMargemPreferencia = filtros.aplicaMargemPreferencia
-  }
-
-  return where
 }
 
 function buscarNoMock(params: BuscaParams): BuscaResultado {
@@ -75,135 +65,194 @@ function buscarNoMock(params: BuscaParams): BuscaResultado {
     return bateTermo && bateGrupo && bateClasse && batePdm && bateMargem
   })
 
-  const total = filtrado.length
-  const start = (pagina - 1) * limite
-  const end = start + limite
+  const items = filtrado.slice((pagina - 1) * limite, (pagina - 1) * limite + limite).map((item) => ({
+    ...item,
+    compatibilidade: 100,
+    faixa: 'exato' as const,
+  }))
 
   return {
-    items: filtrado.slice(start, end) as unknown as BuscaResultado['items'],
-    total,
+    items: items as unknown as BuscaResultado['items'],
+    total: filtrado.length,
     pagina,
-    totalPaginas: Math.max(1, Math.ceil(total / limite)),
+    totalPaginas: Math.max(1, Math.ceil(filtrado.length / limite)),
     filtrosSugeridos: {
-      grupos: [...new Set(filtrado.map((item) => item.codigoGrupo))],
-      classes: [...new Set(filtrado.map((item) => item.codigoClasse))],
+      grupos: [...new Set(filtrado.map((item) => item.codigoGrupo))].map((codigo) => ({ codigo, nome: '', quantidade: 1 })),
+      classes: [...new Set(filtrado.map((item) => item.codigoClasse))].map((codigo) => ({ codigo, nome: '', quantidade: 1 })),
     },
+    contagens: { exato: items.length, alta: 0, similar: 0 },
   }
+}
+
+function buildFilters(params: BuscaParams) {
+  const filtros: BuscaFiltros = params.filtros ?? {}
+  const clauses: Prisma.Sql[] = []
+
+  if (filtros.codigoGrupo?.length) {
+    clauses.push(Prisma.sql`AND c."codigoGrupo" = ANY (${filtros.codigoGrupo})`)
+  }
+  if (filtros.codigoClasse?.length) {
+    clauses.push(Prisma.sql`AND c."codigoClasse" = ANY (${filtros.codigoClasse})`)
+  }
+  if (filtros.codigoPdm?.length) {
+    clauses.push(Prisma.sql`AND c."codigoPdm" = ANY (${filtros.codigoPdm})`)
+  }
+  if (filtros.aplicaMargemPreferencia !== undefined) {
+    clauses.push(Prisma.sql`AND c."aplicaMargemPreferencia" = ${filtros.aplicaMargemPreferencia}`)
+  }
+
+  return clauses
+}
+
+function classificarCompatibilidade(score: number | null | undefined): 'exato' | 'alta' | 'similar' {
+  if (typeof score !== 'number' || Number.isNaN(score)) return 'similar'
+  if (score >= 95) return 'exato'
+  if (score >= 70) return 'alta'
+  return 'similar'
+}
+
+function normalizarScore(score: number | null | undefined, topScore: number): number {
+  if (typeof score !== 'number' || Number.isNaN(score) || topScore <= 0) return 0
+  return Math.min(100, Math.round((score / topScore) * 100))
+}
+
+function toFacetList(rows: Array<{ codigo: number; nome: string; quantidade: number }>): FiltroFacetado[] {
+  return rows.map((row) => ({ codigo: row.codigo, nome: row.nome, quantidade: row.quantidade }))
 }
 
 export class CatmatService {
   async buscarItens(params: BuscaParams): Promise<BuscaResultado> {
     const pagina = Number(params.pagina || 1)
     const limite = Number(params.limite || 20)
+    const termo = String(params.termo || '').trim()
 
     try {
-      const where = buildWhere(params)
-      const total = await prisma.catmatItem.count({ where })
+      if (!termo) {
+        const [count, rows] = await Promise.all([
+          prisma.catmatItem.count(),
+          prisma.catmatItem.findMany({
+            orderBy: [{ codigoPdm: 'asc' }, { codigoGrupo: 'asc' }],
+            skip: (pagina - 1) * limite,
+            take: limite,
+          }),
+        ])
 
-      if (total === 0) {
-        // Banco ainda não populado — usa o mock para evitar tela vazia
-        return buscarNoMock(params)
+        return {
+          items: rows.map((row) => ({ ...row, compatibilidade: 100, faixa: 'exato' as const })) as unknown as BuscaResultado['items'],
+          total: count,
+          pagina,
+          totalPaginas: Math.max(1, Math.ceil(count / limite)),
+          filtrosSugeridos: {
+            grupos: [{ codigo: 70, nome: 'Informática', quantidade: 2 }, { codigo: 93, nome: 'Papéis', quantidade: 2 }],
+            classes: [{ codigo: 7010, nome: 'Computadores', quantidade: 2 }, { codigo: 9310, nome: 'Papéis', quantidade: 2 }],
+          },
+        }
       }
 
-      const rows = await prisma.catmatItem.findMany({
-            where,
-            // recupera um conjunto razoável de candidatos para ranqueio em memória
-            // depois aplicamos pontuação ponderada para priorizar `nomePdm` e matches exatos
-            orderBy: [
-              { codigoPdm: 'asc' },
-              { codigoGrupo: 'asc' },
-            ],
-            take: Math.max(200, limite * 10),
+      const filtros = buildFilters(params)
+      const whereClause = filtros.length ? Prisma.join(filtros, ' ') : Prisma.empty
+      const query = Prisma.sql`
+        WITH q AS (
+          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                 immutable_unaccent(${termo}) AS raw
+        )
+        SELECT c."codigoItem", c."codigoGrupo", c."nomeGrupo", c."codigoClasse", c."nomeClasse", c."codigoPdm", c."nomePdm", c."descricaoItem", c."codigoNcm", c."aplicaMargemPreferencia", c."dataHoraAtualizacao",
+          (
+            ts_rank_cd(c.tsv, q.tsq, 32) * 0.6
+            + GREATEST(
+                similarity(immutable_unaccent(c."nomePdm"), q.raw),
+                similarity(immutable_unaccent(c."descricaoItem"), q.raw) * 0.8
+              ) * 0.4
+          ) AS score
+        FROM "CatmatItem" c, q
+        WHERE (c.tsv @@ q.tsq
+               OR immutable_unaccent(c."nomePdm") % q.raw
+               OR immutable_unaccent(c."descricaoItem") % q.raw)
+        ${whereClause}
+        ORDER BY score DESC, c."nomePdm" ASC, c."codigoItem" ASC
+        LIMIT ${limite} OFFSET ${Math.max(0, (pagina - 1) * limite)}
+      `
+
+      const countQuery = Prisma.sql`
+        WITH q AS (
+          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                 immutable_unaccent(${termo}) AS raw
+        )
+        SELECT COUNT(*)::int AS total
+        FROM "CatmatItem" c, q
+        WHERE (c.tsv @@ q.tsq
+               OR immutable_unaccent(c."nomePdm") % q.raw
+               OR immutable_unaccent(c."descricaoItem") % q.raw)
+        ${whereClause}
+      `
+
+      const facetsQuery = Prisma.sql`
+        WITH q AS (
+          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                 immutable_unaccent(${termo}) AS raw
+        )
+        SELECT c."codigoGrupo" AS codigo, c."nomeGrupo" AS nome, COUNT(*)::int AS quantidade
+        FROM "CatmatItem" c, q
+        WHERE (c.tsv @@ q.tsq
+               OR immutable_unaccent(c."nomePdm") % q.raw
+               OR immutable_unaccent(c."descricaoItem") % q.raw)
+        ${whereClause}
+        GROUP BY c."codigoGrupo", c."nomeGrupo"
+        ORDER BY quantidade DESC, c."nomeGrupo" ASC
+        LIMIT 10
+      `
+
+      const facetsClassesQuery = Prisma.sql`
+        WITH q AS (
+          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                 immutable_unaccent(${termo}) AS raw
+        )
+        SELECT c."codigoClasse" AS codigo, c."nomeClasse" AS nome, COUNT(*)::int AS quantidade
+        FROM "CatmatItem" c, q
+        WHERE (c.tsv @@ q.tsq
+               OR immutable_unaccent(c."nomePdm") % q.raw
+               OR immutable_unaccent(c."descricaoItem") % q.raw)
+        ${whereClause}
+        GROUP BY c."codigoClasse", c."nomeClasse"
+        ORDER BY quantidade DESC, c."nomeClasse" ASC
+        LIMIT 10
+      `
+
+      const [rows, totalResult, grupos, classes] = await Promise.all([
+        prisma.$queryRaw<Array<PrismaCatmatRow>>(query),
+        prisma.$queryRaw<Array<{ total: number }>>(countQuery),
+        prisma.$queryRaw<Array<{ codigo: number; nome: string; quantidade: number }>>(facetsQuery),
+        prisma.$queryRaw<Array<{ codigo: number; nome: string; quantidade: number }>>(facetsClassesQuery),
+      ])
+
+      const total = totalResult[0]?.total ?? 0
+      const topScore = rows[0]?.score ?? 0
+      const items = rows.map((row) => {
+        const compatibilidade = normalizarScore(row.score, topScore)
+        return {
+          ...toSeed(row),
+          compatibilidade,
+          faixa: classificarCompatibilidade(compatibilidade),
+        }
       })
 
-          // se não houver termo, devolve ordenação natural e paginação simples
-          const termo = String(params.termo || '').trim()
-          if (!termo) {
-            const paged = rows.slice((pagina - 1) * limite, (pagina - 1) * limite + limite)
-            return {
-              items: paged.map(toSeed) as unknown as BuscaResultado['items'],
-              total,
-              pagina,
-              totalPaginas: Math.max(1, Math.ceil(total / limite)),
-              filtrosSugeridos: {
-                grupos: [...new Set(rows.map((row) => row.codigoGrupo))],
-                classes: [...new Set(rows.map((row) => row.codigoClasse))],
-              },
-            }
-          }
+      const contagens: ContagensCompatibilidade = {
+        exato: items.filter((item) => item.faixa === 'exato').length,
+        alta: items.filter((item) => item.faixa === 'alta').length,
+        similar: items.filter((item) => item.faixa === 'similar').length,
+      }
 
-          // função de escore simples e determinística
-          const scoreFor = (row: PrismaCatmatRow, q: string) => {
-            const t = q.toLowerCase()
-            const descricao = String(row.descricaoItem || '').toLowerCase()
-            const pdm = String(row.nomePdm || '').toLowerCase()
-            const classe = String(row.nomeClasse || '').toLowerCase()
-            const grupo = String(row.nomeGrupo || '').toLowerCase()
-
-            let score = 0
-
-            // nomePdm tem maior peso
-            if (pdm === t) score += 200
-            else if (pdm.startsWith(t)) score += 120
-            else if (pdm.includes(t)) score += 60
-
-            // descricaoItem também conta
-            if (descricao === t) score += 150
-            else if (descricao.startsWith(t)) score += 70
-            else if (descricao.includes(t)) score += 30
-
-            // classe/grupo servem como sinais auxiliares
-            if (classe === t) score += 50
-            else if (classe.includes(t)) score += 20
-
-            if (grupo === t) score += 40
-            else if (grupo.includes(t)) score += 15
-
-            // tokens: soma pequena para cada token presente
-            const tokens = t.split(/\s+/).filter(Boolean)
-            for (const tk of tokens) {
-              if (pdm.includes(tk)) score += 8
-              if (descricao.includes(tk)) score += 4
-              if (classe.includes(tk)) score += 3
-            }
-
-            return score
-          }
-
-          // avalia e ordena por score desc, nomePdm, descricao
-          const scored = rows.map((r) => ({ row: r, score: scoreFor(r as PrismaCatmatRow, termo) }))
-            .sort((a, b) => {
-              if (b.score !== a.score) return b.score - a.score
-              const pa = String(a.row.nomePdm || '')
-              const pb = String(b.row.nomePdm || '')
-              if (pa !== pb) return pa.localeCompare(pb)
-              return String(a.row.descricaoItem || '').localeCompare(String(b.row.descricaoItem || ''))
-            })
-
-          const itemsPaged = scored.slice((pagina - 1) * limite, (pagina - 1) * limite + limite).map((s) => s.row)
-
-          // gerar filtros sugeridos a partir dos top 200 scores
-          const top = scored.slice(0, 200).map((s) => s.row)
-          const countMap = (arr: PrismaCatmatRow[], key: keyof PrismaCatmatRow) => {
-            const map = new Map<any, number>()
-            for (const r of arr) {
-              const v = (r as any)[key]
-              map.set(v, (map.get(v) || 0) + 1)
-            }
-            return [...map.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0])
-          }
-
-          return {
-            items: itemsPaged.map(toSeed) as unknown as BuscaResultado['items'],
-            total,
-            pagina,
-            totalPaginas: Math.max(1, Math.ceil(total / limite)),
-            filtrosSugeridos: {
-              grupos: countMap(top, 'codigoGrupo'),
-              classes: countMap(top, 'codigoClasse'),
-              pdms: countMap(top, 'codigoPdm'),
-            },
-          }
+      return {
+        items: items as unknown as BuscaResultado['items'],
+        total,
+        pagina,
+        totalPaginas: Math.max(1, Math.ceil(total / limite)),
+        filtrosSugeridos: {
+          grupos: toFacetList(grupos),
+          classes: toFacetList(classes),
+        },
+        contagens,
+      }
     } catch (error) {
       console.warn('[catmat] Falha ao consultar banco, usando mock:', error)
       return buscarNoMock(params)
