@@ -1,5 +1,28 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { catmatMockData } from '@/features/catmar/mock-data'
+
+export const dynamic = 'force-dynamic'
+
+function normalizar(texto: string) {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function getSugestoesFallback(termo: string) {
+  const q = normalizar(termo.trim())
+  if (!q) return []
+
+  const candidatos = catmatMockData
+    .flatMap((item) => [item.nomePdm, item.descricaoItem, item.nomeClasse, item.nomeGrupo])
+    .filter((valor): valor is string => Boolean(valor))
+    .filter((valor) => normalizar(valor).includes(q) || normalizar(valor).startsWith(q))
+
+  const sugestoes = [...new Set(candidatos)].slice(0, 8)
+  return sugestoes.length ? sugestoes : [termo]
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -12,6 +35,12 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (!process.env.DATABASE_URL && !process.env.DATABASE_URL_INTERNAL) {
+      return new NextResponse(JSON.stringify(getSugestoesFallback(q)), {
+        headers: { 'Cache-Control': 'public, s-maxage=86400', 'Content-Type': 'application/json' },
+      })
+    }
+
     const rows = await prisma.$queryRaw<Array<{ nomePdm: string }>>`
       SELECT DISTINCT "nomePdm"
       FROM "CatmatItem"
@@ -21,11 +50,12 @@ export async function GET(request: Request) {
       LIMIT 8
     `
 
-    return new NextResponse(JSON.stringify(rows.map((row) => row.nomePdm)), {
+    const resultado = rows.map((row) => row.nomePdm)
+    return new NextResponse(JSON.stringify(resultado.length ? resultado : getSugestoesFallback(q)), {
       headers: { 'Cache-Control': 'public, s-maxage=86400', 'Content-Type': 'application/json' },
     })
   } catch {
-    return new NextResponse(JSON.stringify([]), {
+    return new NextResponse(JSON.stringify(getSugestoesFallback(q)), {
       headers: { 'Cache-Control': 'public, s-maxage=86400', 'Content-Type': 'application/json' },
     })
   }
