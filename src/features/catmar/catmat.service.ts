@@ -218,121 +218,125 @@ export class CatmatService {
         }
       }
 
-      const query = Prisma.sql`
-        WITH q AS (
-          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
-                 immutable_unaccent(${termo}) AS raw
-        )
-        SELECT c."codigoItem", c."codigoGrupo", c."nomeGrupo", c."codigoClasse", c."nomeClasse", c."codigoPdm", c."nomePdm", c."descricaoItem", c."codigoNcm", c."aplicaMargemPreferencia", c."dataHoraAtualizacao",
-          (
-            ts_rank_cd(c.tsv, q.tsq, 32) * 0.6
-            + GREATEST(
-                similarity(immutable_unaccent(c."nomePdm"), q.raw),
-                similarity(immutable_unaccent(c."descricaoItem"), q.raw) * 0.8
-              ) * 0.4
-          ) AS score,
-          (c.tsv @@ q.tsq) AS "ftsMatch"
-        FROM "CatmatItem" c, q
-        WHERE (c.tsv @@ q.tsq
-               OR immutable_unaccent(c."nomePdm") % q.raw
-               OR immutable_unaccent(c."descricaoItem") % q.raw)
-        ${whereClause}
-        ORDER BY score DESC, c."nomePdm" ASC, c."codigoItem" ASC
-        LIMIT ${limite} OFFSET ${Math.max(0, (pagina - 1) * limite)}
-      `
-
-      const countQuery = Prisma.sql`
-        WITH q AS (
-          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
-                 immutable_unaccent(${termo}) AS raw
-        )
-        SELECT COUNT(*)::int AS total
-        FROM "CatmatItem" c, q
-        WHERE (c.tsv @@ q.tsq
-               OR immutable_unaccent(c."nomePdm") % q.raw
-               OR immutable_unaccent(c."descricaoItem") % q.raw)
-        ${whereClause}
-      `
-
-      const topScoreQuery = Prisma.sql`
-        WITH q AS (
-          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
-                 immutable_unaccent(${termo}) AS raw
-        ), ranked AS (
-          SELECT (
-            ts_rank_cd(c.tsv, q.tsq, 32) * 0.6
-            + GREATEST(
-                similarity(immutable_unaccent(c."nomePdm"), q.raw),
-                similarity(immutable_unaccent(c."descricaoItem"), q.raw) * 0.8
-              ) * 0.4
-          ) AS score
+      // Busca em dois estágios: 1) full-text puro (tsv indexado, cobre acentos e
+      // é a via rápida); 2) somente se o FTS não encontrar nada, trigram sobre
+      // nomePdm para tolerância a typo. O trigram sobre descricaoItem foi removido:
+      // com termos curtos, a rechecagem de similaridade em textos longos varre um
+      // volume enorme de candidatos e estourava o timeout de 10s em produção.
+      const executarBusca = async (matchClause: Prisma.Sql) => {
+        const query = Prisma.sql`
+          WITH q AS (
+            SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                   immutable_unaccent(${termo}) AS raw
+          )
+          SELECT c."codigoItem", c."codigoGrupo", c."nomeGrupo", c."codigoClasse", c."nomeClasse", c."codigoPdm", c."nomePdm", c."descricaoItem", c."codigoNcm", c."aplicaMargemPreferencia", c."dataHoraAtualizacao",
+            (
+              ts_rank_cd(c.tsv, q.tsq, 32) * 0.6
+              + GREATEST(
+                  similarity(immutable_unaccent(c."nomePdm"), q.raw),
+                  similarity(immutable_unaccent(c."descricaoItem"), q.raw) * 0.8
+                ) * 0.4
+            ) AS score,
+            (c.tsv @@ q.tsq) AS "ftsMatch"
           FROM "CatmatItem" c, q
-          WHERE (c.tsv @@ q.tsq
-                 OR immutable_unaccent(c."nomePdm") % q.raw
-                 OR immutable_unaccent(c."descricaoItem") % q.raw)
+          WHERE ${matchClause}
           ${whereClause}
-        )
-        SELECT MAX(score) AS "topScore"
-        FROM ranked
-      `
+          ORDER BY score DESC, c."nomePdm" ASC, c."codigoItem" ASC
+          LIMIT ${limite} OFFSET ${Math.max(0, (pagina - 1) * limite)}
+        `
 
-      const facetsQuery = Prisma.sql`
-        WITH q AS (
-          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
-                 immutable_unaccent(${termo}) AS raw
-        )
-        SELECT c."codigoGrupo" AS codigo, c."nomeGrupo" AS nome, COUNT(*)::int AS quantidade
-        FROM "CatmatItem" c, q
-        WHERE (c.tsv @@ q.tsq
-               OR immutable_unaccent(c."nomePdm") % q.raw
-               OR immutable_unaccent(c."descricaoItem") % q.raw)
-        ${whereClause}
-        GROUP BY c."codigoGrupo", c."nomeGrupo"
-        ORDER BY quantidade DESC, c."nomeGrupo" ASC
-        LIMIT 10
-      `
+        const countQuery = Prisma.sql`
+          WITH q AS (
+            SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                   immutable_unaccent(${termo}) AS raw
+          )
+          SELECT COUNT(*)::int AS total
+          FROM "CatmatItem" c, q
+          WHERE ${matchClause}
+          ${whereClause}
+        `
 
-      const facetsClassesQuery = Prisma.sql`
-        WITH q AS (
-          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
-                 immutable_unaccent(${termo}) AS raw
-        )
-        SELECT c."codigoClasse" AS codigo, c."nomeClasse" AS nome, COUNT(*)::int AS quantidade
-        FROM "CatmatItem" c, q
-        WHERE (c.tsv @@ q.tsq
-               OR immutable_unaccent(c."nomePdm") % q.raw
-               OR immutable_unaccent(c."descricaoItem") % q.raw)
-        ${whereClause}
-        GROUP BY c."codigoClasse", c."nomeClasse"
-        ORDER BY quantidade DESC, c."nomeClasse" ASC
-        LIMIT 10
-      `
+        const topScoreQuery = Prisma.sql`
+          WITH q AS (
+            SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                   immutable_unaccent(${termo}) AS raw
+          ), ranked AS (
+            SELECT (
+              ts_rank_cd(c.tsv, q.tsq, 32) * 0.6
+              + GREATEST(
+                  similarity(immutable_unaccent(c."nomePdm"), q.raw),
+                  similarity(immutable_unaccent(c."descricaoItem"), q.raw) * 0.8
+                ) * 0.4
+            ) AS score
+            FROM "CatmatItem" c, q
+            WHERE ${matchClause}
+            ${whereClause}
+          )
+          SELECT MAX(score) AS "topScore"
+          FROM ranked
+        `
 
-      const facetsPdmQuery = Prisma.sql`
-        WITH q AS (
-          SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
-                 immutable_unaccent(${termo}) AS raw
-        )
-        SELECT c."codigoPdm" AS codigo, c."nomePdm" AS nome, COUNT(*)::int AS quantidade
-        FROM "CatmatItem" c, q
-        WHERE (c.tsv @@ q.tsq
-               OR immutable_unaccent(c."nomePdm") % q.raw
-               OR immutable_unaccent(c."descricaoItem") % q.raw)
-        ${whereClause}
-        GROUP BY c."codigoPdm", c."nomePdm"
-        ORDER BY quantidade DESC, c."nomePdm" ASC
-        LIMIT 10
-      `
+        const facetsQuery = Prisma.sql`
+          WITH q AS (
+            SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                   immutable_unaccent(${termo}) AS raw
+          )
+          SELECT c."codigoGrupo" AS codigo, c."nomeGrupo" AS nome, COUNT(*)::int AS quantidade
+          FROM "CatmatItem" c, q
+          WHERE ${matchClause}
+          ${whereClause}
+          GROUP BY c."codigoGrupo", c."nomeGrupo"
+          ORDER BY quantidade DESC, c."nomeGrupo" ASC
+          LIMIT 10
+        `
 
-      const [rows, totalResult, topScoreResult, grupos, classes, pdms] = await Promise.all([
-        withTimeout(prisma.$queryRaw<Array<PrismaCatmatRow>>(query)),
-        withTimeout(prisma.$queryRaw<Array<{ total: number }>>(countQuery)),
-        withTimeout(prisma.$queryRaw<Array<{ topScore: number | null }>>(topScoreQuery)),
-        withTimeout(prisma.$queryRaw<Array<{ codigo: number; nome: string; quantidade: number }>>(facetsQuery)),
-        withTimeout(prisma.$queryRaw<Array<{ codigo: number; nome: string; quantidade: number }>>(facetsClassesQuery)),
-        withTimeout(prisma.$queryRaw<Array<{ codigo: number; nome: string; quantidade: number }>>(facetsPdmQuery)),
-      ])
+        const facetsClassesQuery = Prisma.sql`
+          WITH q AS (
+            SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                   immutable_unaccent(${termo}) AS raw
+          )
+          SELECT c."codigoClasse" AS codigo, c."nomeClasse" AS nome, COUNT(*)::int AS quantidade
+          FROM "CatmatItem" c, q
+          WHERE ${matchClause}
+          ${whereClause}
+          GROUP BY c."codigoClasse", c."nomeClasse"
+          ORDER BY quantidade DESC, c."nomeClasse" ASC
+          LIMIT 10
+        `
 
+        const facetsPdmQuery = Prisma.sql`
+          WITH q AS (
+            SELECT websearch_to_tsquery('portuguese', immutable_unaccent(${termo})) AS tsq,
+                   immutable_unaccent(${termo}) AS raw
+          )
+          SELECT c."codigoPdm" AS codigo, c."nomePdm" AS nome, COUNT(*)::int AS quantidade
+          FROM "CatmatItem" c, q
+          WHERE ${matchClause}
+          ${whereClause}
+          GROUP BY c."codigoPdm", c."nomePdm"
+          ORDER BY quantidade DESC, c."nomePdm" ASC
+          LIMIT 10
+        `
+
+        const [rows, totalResult, topScoreResult, grupos, classes, pdms] = await Promise.all([
+          withTimeout(prisma.$queryRaw<Array<PrismaCatmatRow>>(query)),
+          withTimeout(prisma.$queryRaw<Array<{ total: number }>>(countQuery)),
+          withTimeout(prisma.$queryRaw<Array<{ topScore: number | null }>>(topScoreQuery)),
+          withTimeout(prisma.$queryRaw<Array<{ codigo: number; nome: string; quantidade: number }>>(facetsQuery)),
+          withTimeout(prisma.$queryRaw<Array<{ codigo: number; nome: string; quantidade: number }>>(facetsClassesQuery)),
+          withTimeout(prisma.$queryRaw<Array<{ codigo: number; nome: string; quantidade: number }>>(facetsPdmQuery)),
+        ])
+
+        return { rows, totalResult, topScoreResult, grupos, classes, pdms }
+      }
+
+      let resultado = await executarBusca(Prisma.sql`c.tsv @@ q.tsq`)
+      if ((resultado.totalResult[0]?.total ?? 0) === 0) {
+        // Nada no full-text: provavelmente typo — tenta trigram no nomePdm
+        resultado = await executarBusca(Prisma.sql`immutable_unaccent(c."nomePdm") % q.raw`)
+      }
+
+      const { rows, totalResult, topScoreResult, grupos, classes, pdms } = resultado
       const total = totalResult[0]?.total ?? 0
       const topScore = Number(topScoreResult[0]?.topScore ?? 0)
       const items = rows.map((row) => {
