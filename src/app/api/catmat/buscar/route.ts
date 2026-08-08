@@ -1,23 +1,12 @@
 import { NextResponse } from 'next/server'
 import { CatmatService } from '@/features/catmar/catmat.service'
 import { buscaParamsSchema } from '@/features/catmar/catmat.schema'
-
-const rateLimit = new Map<string, number[]>()
-
-function allowRequest(ip: string) {
-  const now = Date.now()
-  const windowStart = now - 60_000
-  const entries = (rateLimit.get(ip) || []).filter((timestamp) => timestamp > windowStart)
-  entries.push(now)
-  rateLimit.set(ip, entries)
-  return entries.length <= 60
-}
+import { allowRequest, clientIp, tooManyRequests } from '@/lib/rate-limit'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const ip = request.headers.get('x-forwarded-for') || 'local'
-  if (!allowRequest(ip)) {
-    return NextResponse.json({ erro: 'Muitas requisições em pouco tempo.' }, { status: 429, headers: { 'Cache-Control': 'public, s-maxage=60' } })
+  if (!allowRequest(clientIp(request))) {
+    return tooManyRequests()
   }
 
   const body = {
@@ -45,9 +34,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const ip = request.headers.get('x-forwarded-for') || 'local'
-  if (!allowRequest(ip)) {
-    return NextResponse.json({ erro: 'Muitas requisições em pouco tempo.' }, { status: 429 })
+  if (!allowRequest(clientIp(request))) {
+    return tooManyRequests()
   }
 
   const body = (await request.json().catch(() => ({}))) ?? {}

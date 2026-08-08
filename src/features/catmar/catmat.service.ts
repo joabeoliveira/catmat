@@ -16,6 +16,7 @@ interface PrismaCatmatRow {
   aplicaMargemPreferencia: boolean
   dataHoraAtualizacao: Date
   score?: number | null
+  ftsMatch?: boolean | null
   compatibilidade?: number | null
   faixa?: 'exato' | 'alta' | 'similar'
 }
@@ -105,9 +106,11 @@ function buildFilters(params: BuscaParams) {
   return clauses
 }
 
-function classificarCompatibilidade(score: number | null | undefined): 'exato' | 'alta' | 'similar' {
+function classificarCompatibilidade(score: number | null | undefined, ftsMatch?: boolean | null): 'exato' | 'alta' | 'similar' {
   if (typeof score !== 'number' || Number.isNaN(score)) return 'similar'
-  if (score >= 95) return 'exato'
+  // "exato" exige piso absoluto: todos os tokens da busca presentes no item (match full-text),
+  // não apenas o melhor score relativo da página — evita rotular typo/fuzzy como exato
+  if (score >= 95 && ftsMatch === true) return 'exato'
   if (score >= 70) return 'alta'
   return 'similar'
 }
@@ -227,7 +230,8 @@ export class CatmatService {
                 similarity(immutable_unaccent(c."nomePdm"), q.raw),
                 similarity(immutable_unaccent(c."descricaoItem"), q.raw) * 0.8
               ) * 0.4
-          ) AS score
+          ) AS score,
+          (c.tsv @@ q.tsq) AS "ftsMatch"
         FROM "CatmatItem" c, q
         WHERE (c.tsv @@ q.tsq
                OR immutable_unaccent(c."nomePdm") % q.raw
@@ -336,7 +340,7 @@ export class CatmatService {
         return {
           ...toSeed(row),
           compatibilidade,
-          faixa: classificarCompatibilidade(compatibilidade),
+          faixa: classificarCompatibilidade(compatibilidade, row.ftsMatch),
         }
       })
 

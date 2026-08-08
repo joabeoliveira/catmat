@@ -13,6 +13,13 @@ function formatarMoeda(valor: number | null | undefined) {
   return `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function formatarData(iso: string | null | undefined) {
+  if (!iso) return '—'
+  const data = new Date(iso)
+  if (Number.isNaN(data.getTime())) return '—'
+  return data.toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+}
+
 export async function generateMetadata({ params }: MaterialPageProps): Promise<Metadata> {
   const service = new CatmatService()
   const item = await service.obterItem(Number(params.codigo))
@@ -95,7 +102,7 @@ export default async function MaterialPage({ params }: MaterialPageProps) {
                 <div className="flex items-center justify-between"><span className="text-slate-400">Maior</span><span className="font-medium text-white">{formatarMoeda(estatisticas.maior)}</span></div>
                 <div className="flex items-center justify-between"><span className="text-slate-400">Compras</span><span className="font-medium text-white">{estatisticas.quantidadeCompras}</span></div>
                 <div className="flex items-center justify-between"><span className="text-slate-400">Outliers removidos</span><span className="font-medium text-white">{estatisticas.quantidadeOutliersRemovidos}</span></div>
-                <div className="text-xs text-slate-500">Período considerado: {estatisticas.periodoInicio || '—'} a {estatisticas.periodoFim || '—'}</div>
+                <div className="text-xs text-slate-500">Período considerado: {formatarData(estatisticas.periodoInicio)} a {formatarData(estatisticas.periodoFim)}</div>
               </div>
             ) : (
               <p className="mt-3 text-sm text-slate-400">Sem histórico de compras registrado.</p>

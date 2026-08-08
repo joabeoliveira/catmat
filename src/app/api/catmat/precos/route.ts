@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { precosRequestSchema } from '@/features/catmar/catmat.schema'
+import { allowRequest, clientIp, tooManyRequests } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
+  if (!allowRequest(clientIp(request))) {
+    return tooManyRequests()
+  }
+
   const body = await request.json().catch(() => ({}))
   const parsed = precosRequestSchema.safeParse(body)
 

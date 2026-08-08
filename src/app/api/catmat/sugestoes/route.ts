@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { catmatMockData } from '@/features/catmar/mock-data'
 import { sugestaoSchema } from '@/features/catmar/catmat.schema'
+import { allowRequest, clientIp, tooManyRequests } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,10 @@ function getSugestoesFallback(termo: string) {
 }
 
 export async function GET(request: Request) {
+  if (!allowRequest(clientIp(request), 120)) {
+    return tooManyRequests()
+  }
+
   const { searchParams } = new URL(request.url)
   const parsed = sugestaoSchema.safeParse({ q: searchParams.get('q') || '' })
 
@@ -52,16 +57,18 @@ export async function GET(request: Request) {
     }
 
     const rows = await prisma.$queryRaw<Array<{ nomePdm: string }>>`
-      SELECT DISTINCT "nomePdm"
+      SELECT "nomePdm"
       FROM "CatmatItem"
       WHERE immutable_unaccent("nomePdm") ILIKE immutable_unaccent(${`${q}%`})
          OR immutable_unaccent("nomePdm") % immutable_unaccent(${q})
+      GROUP BY "nomePdm"
       ORDER BY similarity(immutable_unaccent("nomePdm"), immutable_unaccent(${q})) DESC
       LIMIT 8
     `
 
+    // Banco respondeu: resultado vazio é resposta legítima — não cair no mock
     const resultado = rows.map((row) => row.nomePdm)
-    return new NextResponse(JSON.stringify(resultado.length ? resultado : getSugestoesFallback(q)), {
+    return new NextResponse(JSON.stringify(resultado), {
       headers: { 'Cache-Control': 'public, s-maxage=86400', 'Content-Type': 'application/json' },
     })
   } catch {

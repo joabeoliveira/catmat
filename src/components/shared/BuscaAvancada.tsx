@@ -247,6 +247,23 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     localStorage.setItem('catmat:grades', JSON.stringify(storage))
   }
 
+  const renomearGrade = () => {
+    if (typeof window === 'undefined' || gradeAtiva === 'principal') return
+    const nome = novoNomeGrade.trim()
+    if (!nome || nome === gradeAtiva) return
+    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
+    if (storage[nome]) return
+    storage[nome] = storage[gradeAtiva] || []
+    delete storage[gradeAtiva]
+    setGrades(Object.keys(storage))
+    setGradeAtiva(nome)
+    setGradeNome(nome)
+    setGradeItens(storage[nome])
+    setNovoNomeGrade('')
+    localStorage.setItem('catmat:grades', JSON.stringify(storage))
+    window.dispatchEvent(new Event('gradeAtualizada'))
+  }
+
   const removerGrade = () => {
     if (typeof window === 'undefined' || gradeAtiva === 'principal') return
     const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
@@ -534,6 +551,12 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                 </Button>
               </div>
             </>
+          ) : !data ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-slate-400">
+                <p>Digite um termo acima para pesquisar no catálogo CATMAT — por descrição, grupo, classe ou PDM.</p>
+              </CardContent>
+            </Card>
           ) : (
             <Card>
               <CardContent className="pt-6 text-center text-slate-400">
@@ -580,7 +603,12 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                 <Input value={novoNomeGrade} onChange={(event) => setNovoNomeGrade(event.target.value)} placeholder="Novo nome da grade" />
                 <Button type="button" variant="outline" onClick={criarGrade}>Criar</Button>
               </div>
-              {gradeAtiva !== 'principal' && <Button type="button" variant="ghost" onClick={removerGrade}>Excluir grade</Button>}
+              {gradeAtiva !== 'principal' && (
+                <div className="flex gap-2">
+                  <Button type="button" variant="ghost" onClick={renomearGrade} disabled={!novoNomeGrade.trim()}>Renomear</Button>
+                  <Button type="button" variant="ghost" onClick={removerGrade}>Excluir grade</Button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-400">
