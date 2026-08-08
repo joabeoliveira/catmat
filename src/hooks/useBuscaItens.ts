@@ -39,6 +39,7 @@ export interface BuscaResponse {
   filtrosSugeridos?: {
     grupos: Array<{ codigo: number; nome: string; quantidade: number }>
     classes: Array<{ codigo: number; nome: string; quantidade: number }>
+    pdms: Array<{ codigo: number; nome: string; quantidade: number }>
   }
   contagens?: {
     exato: number
@@ -47,8 +48,12 @@ export interface BuscaResponse {
   }
 }
 
-export function useBuscaItens() {
-  const [data, setData] = useState<BuscaResponse | null>(null)
+export interface UseBuscaItensOptions {
+  initialData?: BuscaResponse | null
+}
+
+export function useBuscaItens(initialData?: BuscaResponse | null) {
+  const [data, setData] = useState<BuscaResponse | null>(initialData ?? null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -60,13 +65,30 @@ export function useBuscaItens() {
     const controller = new AbortController()
     abortRef.current = controller
 
+    const query = new URLSearchParams({
+      q: params.termo || '',
+      pagina: String(params.pagina || 1),
+      limite: String(params.limite || 20),
+    })
+
+    if (params.filtros?.codigoGrupo?.length) {
+      params.filtros.codigoGrupo.forEach((value) => query.append('grupo', String(value)))
+    }
+    if (params.filtros?.codigoClasse?.length) {
+      params.filtros.codigoClasse.forEach((value) => query.append('classe', String(value)))
+    }
+    if (params.filtros?.codigoPdm?.length) {
+      params.filtros.codigoPdm.forEach((value) => query.append('pdm', String(value)))
+    }
+    if (params.filtros?.aplicaMargemPreferencia !== undefined) {
+      query.set('aplicaMargemPreferencia', String(params.filtros.aplicaMargemPreferencia))
+    }
+
     setIsLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/catmat/buscar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
+      const response = await fetch(`/api/catmat/buscar?${query.toString()}`, {
+        method: 'GET',
         signal: controller.signal,
       })
 

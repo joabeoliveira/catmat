@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { catmatMockData } from '@/features/catmar/mock-data'
+import { sugestaoSchema } from '@/features/catmar/catmat.schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,12 +22,21 @@ function getSugestoesFallback(termo: string) {
     .filter((valor) => normalizar(valor).includes(q) || normalizar(valor).startsWith(q))
 
   const sugestoes = [...new Set(candidatos)].slice(0, 8)
-  return sugestoes.length ? sugestoes : [termo]
+  return sugestoes.length ? sugestoes : []
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const q = (searchParams.get('q') || '').trim()
+  const parsed = sugestaoSchema.safeParse({ q: searchParams.get('q') || '' })
+
+  if (!parsed.success) {
+    return new NextResponse(JSON.stringify([]), {
+      status: 400,
+      headers: { 'Cache-Control': 'public, s-maxage=86400', 'Content-Type': 'application/json' },
+    })
+  }
+
+  const q = (parsed.data.q || '').trim()
 
   if (q.length < 2) {
     return new NextResponse(JSON.stringify([]), {

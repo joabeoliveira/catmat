@@ -1,8 +1,9 @@
 import { MetadataRoute } from 'next'
 import { prisma } from '@/lib/db'
+import { getSiteUrl } from '@/lib/site-config'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://catmat.com.br'
+  const baseUrl = getSiteUrl()
 
   if (!process.env.DATABASE_URL) {
     return [

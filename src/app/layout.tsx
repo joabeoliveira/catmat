@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import '@/styles/globals.css'
+import { getSiteUrl } from '@/lib/site-config'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://catmat.com.br'),
+  metadataBase: new URL(getSiteUrl()),
   title: {
     template: '%s | Consulta CATMAT',
     default: 'Consulta CATMAT — Catálogo de Materiais e Preços Públicos',

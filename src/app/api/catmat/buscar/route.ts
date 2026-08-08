@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
 import { CatmatService } from '@/features/catmar/catmat.service'
 import { buscaParamsSchema } from '@/features/catmar/catmat.schema'
 
@@ -28,6 +27,8 @@ export async function GET(request: Request) {
     filtros: {
       codigoGrupo: searchParams.getAll('grupo').map((value) => Number(value)).filter(Boolean),
       codigoClasse: searchParams.getAll('classe').map((value) => Number(value)).filter(Boolean),
+      codigoPdm: searchParams.getAll('pdm').map((value) => Number(value)).filter(Boolean),
+      aplicaMargemPreferencia: searchParams.get('aplicaMargemPreferencia') ? searchParams.get('aplicaMargemPreferencia') === 'true' : undefined,
     },
   }
 
@@ -37,7 +38,9 @@ export async function GET(request: Request) {
   }
 
   const service = new CatmatService()
+  const startedAt = Date.now()
   const resultado = await service.buscarItens(parsed.data)
+  console.log(JSON.stringify({ termo: parsed.data.termo, total: resultado.total, duracaoMs: Date.now() - startedAt }))
   return NextResponse.json(resultado, { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' } })
 }
 
@@ -60,7 +63,9 @@ export async function POST(request: Request) {
   }
 
   const service = new CatmatService()
+  const startedAt = Date.now()
   const resultado = await service.buscarItens(parsed.data)
+  console.log(JSON.stringify({ termo: parsed.data.termo, total: resultado.total, duracaoMs: Date.now() - startedAt }))
 
   return NextResponse.json(resultado)
 }

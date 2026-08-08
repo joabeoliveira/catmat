@@ -32,3 +32,10 @@ export const buscaParamsSchema = z.object({
 export const sugestaoSchema = z.object({
   q: z.string().max(200).optional(),
 })
+
+export const precosRequestSchema = z.object({
+  codigoItem: z.number().int().optional(),
+  precos: z.array(z.number()).optional(),
+  periodoInicio: z.string().optional().nullable(),
+  periodoFim: z.string().optional().nullable(),
+})

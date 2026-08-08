@@ -1,6 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Check, Copy, Download, Filter, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -20,42 +22,100 @@ interface BuscaAvancadaProps {
   initialResults?: unknown
 }
 
+type GradeItem = Record<string, unknown> & {
+  codigoItem: number
+  descricaoItem: string
+  criterioPreco?: string
+  precoPersonalizado?: number | null
+  precoUnitario?: number | null
+  quantidadeCompras?: number
+  periodoInicio?: string | null
+  periodoFim?: string | null
+  fonte?: string
+  metricas?: Record<string, number | string | null | undefined>
+}
+
 export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   const [termo, setTermo] = useState('')
   const [codigoGrupo, setCodigoGrupo] = useState('')
   const [codigoClasse, setCodigoClasse] = useState('')
+  const [codigoPdm, setCodigoPdm] = useState('')
   const [aplicaMargem, setAplicaMargem] = useState('')
   const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   const [pagina, setPagina] = useState(1)
-  const [criterioPreco, setCriterioPreco] = useState('media')
-  const [precoCustomizado, setPrecoCustomizado] = useState('')
-  const [gradeItens, setGradeItens] = useState<Array<Record<string, unknown>>>([])
+  const [gradeItens, setGradeItens] = useState<GradeItem[]>([])
+  const [gradeNome, setGradeNome] = useState('principal')
+  const [grades, setGrades] = useState<string[]>(['principal'])
+  const [gradeAtiva, setGradeAtiva] = useState('principal')
+  const [novoNomeGrade, setNovoNomeGrade] = useState('')
   const [copiadoCodigo, setCopiadoCodigo] = useState<number | null>(null)
   const [sugestoes, setSugestoes] = useState<string[]>([])
   const [sugestaoAtiva, setSugestaoAtiva] = useState(-1)
   const [mostrarSugestoes, setMostrarSugestoes] = useState(false)
   const [filtroFaixa, setFiltroFaixa] = useState<'todos' | 'exato' | 'alta' | 'similar'>('todos')
-  const { data, isLoading, error, mutate } = useBuscaItens()
+  const { data, isLoading, error, mutate } = useBuscaItens(initialResults as any)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
-  const carregarBusca = async (novaPagina = 1) => {
+  const sincronizarUrl = (nextTermo: string, nextGrupo: string, nextClasse: string, nextPdm: string, nextPagina: number) => {
+    const params = new URLSearchParams()
+    const termoLimpo = nextTermo.trim()
+    if (termoLimpo) params.set('q', termoLimpo)
+    if (nextGrupo) params.set('grupo', nextGrupo)
+    if (nextClasse) params.set('classe', nextClasse)
+    if (nextPdm) params.set('pdm', nextPdm)
+    if (nextPagina > 1) params.set('pagina', String(nextPagina))
+
+    const target = params.toString() ? `${pathname}?${params.toString()}` : pathname
+    router.push(target, { scroll: false })
+  }
+
+  const carregarBusca = async (novaPagina = 1, overrides?: { termo?: string; grupo?: string; classe?: string; pdm?: string }) => {
+    const proximoTermo = overrides?.termo ?? termo
+    const proximoGrupo = overrides?.grupo ?? codigoGrupo
+    const proximoClasse = overrides?.classe ?? codigoClasse
+    const proximoPdm = overrides?.pdm ?? codigoPdm
+
     await mutate({
-      termo,
+      termo: proximoTermo,
       pagina: novaPagina,
-      limite: 4,
+      limite: 12,
       filtros: {
-        codigoGrupo: codigoGrupo ? [Number(codigoGrupo)] : undefined,
-        codigoClasse: codigoClasse ? [Number(codigoClasse)] : undefined,
+        codigoGrupo: proximoGrupo ? [Number(proximoGrupo)] : undefined,
+        codigoClasse: proximoClasse ? [Number(proximoClasse)] : undefined,
+        codigoPdm: proximoPdm ? [Number(proximoPdm)] : undefined,
         aplicaMargemPreferencia: aplicaMargem === '' ? undefined : aplicaMargem === 'true',
       },
     })
     setPagina(novaPagina)
+    sincronizarUrl(proximoTermo, proximoGrupo, proximoClasse, proximoPdm, novaPagina)
   }
 
   useEffect(() => {
-    void carregarBusca(1)
-  }, [])
+    const qParam = searchParams?.get('q') || ''
+    const grupoParam = searchParams?.get('grupo') || ''
+    const classeParam = searchParams?.get('classe') || ''
+    const pdmParam = searchParams?.get('pdm') || ''
+    const paginaParam = Number(searchParams?.get('pagina') || 1)
+
+    if (!qParam && !grupoParam && !classeParam && !pdmParam && paginaParam === 1) {
+      setTermo('')
+      setCodigoGrupo('')
+      setCodigoClasse('')
+      setCodigoPdm('')
+      setPagina(1)
+      return
+    }
+
+    setTermo(qParam)
+    setCodigoGrupo(grupoParam)
+    setCodigoClasse(classeParam)
+    setCodigoPdm(pdmParam)
+    setPagina(paginaParam)
+  }, [searchParams])
 
   useEffect(() => {
     const q = termo.trim()
@@ -90,20 +150,48 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     }
   }, [termo])
 
-  const adicionarItemGrade = (item: BuscaItem) => {
+  const adicionarItemGrade = async (item: BuscaItem) => {
     if (typeof window === 'undefined') return
-    const gradeAtual = JSON.parse(sessionStorage.getItem('grade_itens') || '[]') as Array<Record<string, unknown>>
-    const existe = gradeAtual.some((i) => i.codigoItem === item.codigoItem)
 
-    if (!existe) {
-      const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
-      const principal = Array.isArray(storage.principal) ? storage.principal : []
-      const novaGrade = [...principal, { ...item, unidade: null, precoReferencia: null }]
-      storage.principal = novaGrade
-      localStorage.setItem('catmat:grades', JSON.stringify(storage))
-      setGradeItens(novaGrade)
-      window.dispatchEvent(new Event('gradeAtualizada'))
+    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
+    const gradeSelecionada = Array.isArray(storage[gradeAtiva]) ? storage[gradeAtiva] : []
+    const existe = gradeSelecionada.some((i: GradeItem) => i.codigoItem === item.codigoItem)
+
+    if (existe) return
+
+    let metricas: Record<string, number | string | null | undefined> | undefined
+    try {
+      const response = await fetch('/api/catmat/precos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigoItem: item.codigoItem }),
+      })
+      const payload = await response.json()
+      metricas = payload?.metricas
+    } catch {
+      metricas = undefined
     }
+
+    const media = typeof metricas?.media === 'number' ? metricas.media : null
+    const novoItem: GradeItem = {
+      ...item,
+      unidade: null,
+      precoReferencia: media,
+      criterioPreco: 'media',
+      precoPersonalizado: null,
+      precoUnitario: media,
+      quantidadeCompras: typeof metricas?.quantidadeCompras === 'number' ? metricas.quantidadeCompras : 0,
+      periodoInicio: typeof metricas?.periodoInicio === 'string' ? metricas.periodoInicio : null,
+      periodoFim: typeof metricas?.periodoFim === 'string' ? metricas.periodoFim : null,
+      fonte: typeof metricas?.fonte === 'string' ? metricas.fonte : 'Compras.gov.br / PNCP',
+      metricas,
+    }
+
+    const novaGrade = [...gradeSelecionada, novoItem]
+    storage[gradeAtiva] = novaGrade
+    localStorage.setItem('catmat:grades', JSON.stringify(storage))
+    setGradeItens(novaGrade)
+    window.dispatchEvent(new Event('gradeAtualizada'))
   }
 
   const copiarCodigo = async (codigo: number) => {
@@ -118,21 +206,94 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
 
   const resumoGrade = useMemo(() => gradeItens.length, [gradeItens])
 
+  const formatarMoeda = (valor: number | null | undefined) => {
+    if (typeof valor !== 'number' || Number.isNaN(valor)) return '—'
+    return `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+  const calcularPrecoSelecionado = (item: GradeItem) => {
+    const metricas = item.metricas ?? {}
+    const criterio = item.criterioPreco || 'media'
+
+    if (criterio === 'personalizado') {
+      return typeof item.precoPersonalizado === 'number' ? item.precoPersonalizado : 0
+    }
+
+    const base = typeof metricas[criterio] === 'number' ? metricas[criterio] : metricas.media
+    return typeof base === 'number' ? Number(base.toFixed(2)) : 0
+  }
+
+  const atualizarItemGrade = (index: number, atualizacao: Partial<GradeItem>) => {
+    if (typeof window === 'undefined') return
+    const proxGrade = gradeItens.map((item, itemIndex) => itemIndex === index ? { ...item, ...atualizacao } : item)
+    setGradeItens(proxGrade)
+    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
+    storage[gradeAtiva] = proxGrade
+    localStorage.setItem('catmat:grades', JSON.stringify(storage))
+    window.dispatchEvent(new Event('gradeAtualizada'))
+  }
+
+  const criarGrade = () => {
+    if (typeof window === 'undefined') return
+    const nome = novoNomeGrade.trim() || `grade-${Date.now()}`
+    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
+    if (!storage[nome]) storage[nome] = []
+    const nomes = Object.keys(storage)
+    setGrades(nomes)
+    setGradeAtiva(nome)
+    setGradeNome(nome)
+    setGradeItens(storage[nome])
+    setNovoNomeGrade('')
+    localStorage.setItem('catmat:grades', JSON.stringify(storage))
+  }
+
+  const removerGrade = () => {
+    if (typeof window === 'undefined' || gradeAtiva === 'principal') return
+    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
+    delete storage[gradeAtiva]
+    const nomes = Object.keys(storage)
+    const proxima = nomes[0] || 'principal'
+    setGrades(nomes)
+    setGradeAtiva(proxima)
+    setGradeNome(proxima)
+    setGradeItens(Array.isArray(storage[proxima]) ? storage[proxima] : [])
+    localStorage.setItem('catmat:grades', JSON.stringify(storage))
+    window.dispatchEvent(new Event('gradeAtualizada'))
+  }
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     const gradeAtual = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
-    const principal = Array.isArray(gradeAtual?.principal) ? gradeAtual.principal : []
-    setGradeItens(principal)
+    const nomes = Object.keys(gradeAtual).length ? Object.keys(gradeAtual) : ['principal']
+    if (!gradeAtual.principal) gradeAtual.principal = []
+    if (!gradeAtual[gradeAtiva] && gradeAtual.principal) {
+      gradeAtual[gradeAtiva] = []
+    }
+    setGrades(nomes)
+    setGradeItens(Array.isArray(gradeAtual[gradeAtiva]) ? gradeAtual[gradeAtiva] : [])
+    localStorage.setItem('catmat:grades', JSON.stringify(gradeAtual))
   }, [])
 
   const exportarCsv = () => {
     if (!gradeItens.length) return
 
     const linhas = [
-      ['codigoItem', 'descricaoItem', 'criterioPreco', 'precoSelecionado', 'observacao'],
+      ['codigoItem', 'descricaoItem', 'unidade', 'criterioPreco', 'precoUnitario', 'quantidadeCompras', 'periodoInicio', 'periodoFim', 'fonte'],
       ...gradeItens.map((item) => {
-        const valor = precoCustomizado && criterioPreco === 'personalizado' ? precoCustomizado : '0'
-        return [String(item.codigoItem || ''), String(item.descricaoItem || ''), criterioPreco, valor, '']
+        const criterio = item.criterioPreco || 'media'
+        const valorSelecionado = calcularPrecoSelecionado(item)
+        const valor = criterio === 'personalizado' && typeof item.precoPersonalizado === 'number' ? item.precoPersonalizado : valorSelecionado
+        return [
+          String(item.codigoItem || ''),
+          String(item.descricaoItem || ''),
+          String(item.unidade || ''),
+          criterio,
+          String(valor ?? ''),
+          String(item.quantidadeCompras ?? ''),
+          String(item.periodoInicio || ''),
+          String(item.periodoFim || ''),
+          String(item.fonte || 'Compras.gov.br / PNCP'),
+        ]
       }),
     ]
 
@@ -162,9 +323,10 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
       setSugestaoAtiva((value) => (value - 1 + sugestoes.length) % sugestoes.length)
     } else if (event.key === 'Enter' && sugestaoAtiva >= 0) {
       event.preventDefault()
-      setTermo(sugestoes[sugestaoAtiva])
+      const sugestaoSelecionada = sugestoes[sugestaoAtiva]
+      setTermo(sugestaoSelecionada)
       setMostrarSugestoes(false)
-      void carregarBusca(1)
+      void carregarBusca(1, { termo: sugestaoSelecionada })
     } else if (event.key === 'Escape') {
       setMostrarSugestoes(false)
       setSugestaoAtiva(-1)
@@ -174,7 +336,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   const aplicarSugestao = (sugestao: string) => {
     setTermo(sugestao)
     setMostrarSugestoes(false)
-    void carregarBusca(1)
+    void carregarBusca(1, { termo: sugestao })
   }
 
   return (
@@ -238,25 +400,40 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
               </div>
 
               {filtrosAbertos && (
-                <div className="grid gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 md:grid-cols-3">
-                  <div>
-                    <label className="mb-2 block text-sm text-slate-300">Grupo</label>
-                    <Select value={codigoGrupo} onChange={(event) => setCodigoGrupo(event.target.value)}>
-                      <option value="">Todos</option>
-                      {data?.filtrosSugeridos?.grupos?.map((grupo) => (
-                        <option key={grupo.codigo} value={grupo.codigo}>{grupo.codigo} - {grupo.nome || 'Grupo'}</option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm text-slate-300">Classe</label>
-                    <Select value={codigoClasse} onChange={(event) => setCodigoClasse(event.target.value)}>
-                      <option value="">Todas</option>
-                      {data?.filtrosSugeridos?.classes?.map((classe) => (
-                        <option key={classe.codigo} value={classe.codigo}>{classe.codigo} - {classe.nome || 'Classe'}</option>
-                      ))}
-                    </Select>
-                  </div>
+                <div className="grid gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 md:grid-cols-4">
+                  {data?.filtrosSugeridos?.grupos?.length ? (
+                    <div>
+                      <label className="mb-2 block text-sm text-slate-300">Grupo</label>
+                      <Select value={codigoGrupo} onChange={(event) => setCodigoGrupo(event.target.value)}>
+                        <option value="">Todos</option>
+                        {data?.filtrosSugeridos?.grupos?.map((grupo) => (
+                          <option key={grupo.codigo} value={grupo.codigo}>{grupo.codigo} - {grupo.nome || 'Grupo'}</option>
+                        ))}
+                      </Select>
+                    </div>
+                  ) : null}
+                  {data?.filtrosSugeridos?.classes?.length ? (
+                    <div>
+                      <label className="mb-2 block text-sm text-slate-300">Classe</label>
+                      <Select value={codigoClasse} onChange={(event) => setCodigoClasse(event.target.value)}>
+                        <option value="">Todas</option>
+                        {data?.filtrosSugeridos?.classes?.map((classe) => (
+                          <option key={classe.codigo} value={classe.codigo}>{classe.codigo} - {classe.nome || 'Classe'}</option>
+                        ))}
+                      </Select>
+                    </div>
+                  ) : null}
+                  {data?.filtrosSugeridos?.pdms?.length ? (
+                    <div>
+                      <label className="mb-2 block text-sm text-slate-300">PDM</label>
+                      <Select value={codigoPdm} onChange={(event) => setCodigoPdm(event.target.value)}>
+                        <option value="">Todos</option>
+                        {data?.filtrosSugeridos?.pdms?.map((pdm) => (
+                          <option key={pdm.codigo} value={pdm.codigo}>{pdm.codigo} - {pdm.nome || 'PDM'}</option>
+                        ))}
+                      </Select>
+                    </div>
+                  ) : null}
                   <div>
                     <label className="mb-2 block text-sm text-slate-300">Margem de preferência</label>
                     <Select value={aplicaMargem} onChange={(event) => setAplicaMargem(event.target.value)}>
@@ -332,6 +509,9 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                           {item.compatibilidade}% · {item.faixa === 'exato' ? 'Resultado exato' : item.faixa === 'alta' ? 'Alta similaridade' : 'Similar'}
                         </Badge>
                       )}
+                      <Link href={`/material/${item.codigoItem}`} className="inline-flex items-center rounded-md border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:border-cyan-500 hover:text-cyan-300">
+                        Ver detalhes →
+                      </Link>
                       <Button variant="outline" size="sm" onClick={() => adicionarItemGrade(item)}>
                         Adicionar à grade
                       </Button>
@@ -357,7 +537,16 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
           ) : (
             <Card>
               <CardContent className="pt-6 text-center text-slate-400">
-                Nenhum resultado encontrado para o termo informado.
+                <p>Nenhum resultado encontrado para o termo informado.</p>
+                {termo.trim() && sugestoes[0] && (
+                  <p className="mt-3 text-sm text-cyan-300">
+                    Você quis dizer{' '}
+                    <button type="button" className="font-semibold underline" onClick={() => aplicarSugestao(sugestoes[0])}>
+                      {sugestoes[0]}
+                    </button>
+                    ?
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
@@ -373,33 +562,54 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
           <CardContent className="space-y-3">
             <div className="rounded-lg border border-dashed border-slate-700 p-4 text-sm text-slate-400">
               <p className="font-medium text-white">{resumoGrade} itens na grade</p>
-              <p className="mt-2">A seleção ficará salva no navegador até o fechamento da aba.</p>
+              <p className="mt-2">A seleção fica salva no navegador e pode ser organizada por grade.</p>
             </div>
-            <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-400">
-              <p className="font-medium text-white">Próximos passos</p>
-              <ul className="mt-2 list-disc space-y-2 pl-5">
-                <li>Escolher unidade de medida via API do governo.</li>
-                <li>Aplicar critérios de preço: menor, média, mediana ou personalizado.</li>
-                <li>Espurgar outliers para alinhar ao mercado.</li>
-              </ul>
+
+            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-400">
+              <label className="block text-sm text-slate-300">Grade ativa</label>
+              <Select value={gradeAtiva} onChange={(event) => {
+                const nome = event.target.value
+                const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
+                setGradeAtiva(nome)
+                setGradeNome(nome)
+                setGradeItens(Array.isArray(storage[nome]) ? storage[nome] : [])
+              }}>
+                {grades.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+              </Select>
+              <div className="flex gap-2">
+                <Input value={novoNomeGrade} onChange={(event) => setNovoNomeGrade(event.target.value)} placeholder="Novo nome da grade" />
+                <Button type="button" variant="outline" onClick={criarGrade}>Criar</Button>
+              </div>
+              {gradeAtiva !== 'principal' && <Button type="button" variant="ghost" onClick={removerGrade}>Excluir grade</Button>}
             </div>
 
             <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-400">
-              <label className="block text-sm text-slate-300">Critério de preço</label>
-              <Select value={criterioPreco} onChange={(event) => setCriterioPreco(event.target.value)}>
-                <option value="menor">Menor</option>
-                <option value="media">Média</option>
-                <option value="mediana">Mediana</option>
-                <option value="maior">Maior</option>
-                <option value="personalizado">Personalizado</option>
-              </Select>
-              {criterioPreco === 'personalizado' && (
-                <Input
-                  placeholder="Valor personalizado"
-                  value={precoCustomizado}
-                  onChange={(event) => setPrecoCustomizado(event.target.value)}
-                />
-              )}
+              {gradeItens.length ? gradeItens.map((item, index) => (
+                <div key={`${item.codigoItem}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+                  <div className="font-medium text-white">{item.descricaoItem}</div>
+                  <div className="mt-2 text-xs text-slate-500">CATMAT {item.codigoItem}</div>
+                  <Select
+                    value={item.criterioPreco || 'media'}
+                    onChange={(event) => atualizarItemGrade(index, { criterioPreco: event.target.value, precoUnitario: calcularPrecoSelecionado({ ...item, criterioPreco: event.target.value }) })}
+                    className="mt-2"
+                  >
+                    <option value="menor">Menor</option>
+                    <option value="media">Média</option>
+                    <option value="mediana">Mediana</option>
+                    <option value="maior">Maior</option>
+                    <option value="personalizado">Personalizado</option>
+                  </Select>
+                  {item.criterioPreco === 'personalizado' && (
+                    <Input
+                      className="mt-2"
+                      placeholder="Valor personalizado"
+                      value={item.precoPersonalizado ?? ''}
+                      onChange={(event) => atualizarItemGrade(index, { precoPersonalizado: Number(event.target.value) || 0 })}
+                    />
+                  )}
+                  <div className="mt-2 text-xs text-slate-400">Preço: {formatarMoeda(calcularPrecoSelecionado(item))}</div>
+                </div>
+              )) : <p className="text-sm text-slate-500">Adicione itens para construir a grade.</p>}
               <Button type="button" variant="outline" className="w-full" onClick={exportarCsv}>
                 <Download className="mr-2 h-4 w-4" />
                 Exportar CSV
