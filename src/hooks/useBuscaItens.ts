@@ -29,6 +29,11 @@ export interface BuscaItem {
   dataHoraAtualizacao: string
   compatibilidade?: number
   faixa?: 'exato' | 'alta' | 'similar'
+  historicoPrecos?: {
+    quantidadeCompras: number
+    periodoFim: string | null
+    atualizadoEm: string
+  } | null
 }
 
 export interface BuscaResponse {

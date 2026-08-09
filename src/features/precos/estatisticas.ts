@@ -227,6 +227,32 @@ async function comprasDoGoverno(codigoItem: number): Promise<CompraPreco[]> {
   }
 }
 
+// Grava o resumo de atividade do item (fire-and-forget) — alimenta o selo
+// "tem histórico de preços" na busca. Erro aqui nunca afeta a resposta.
+function registrarResumo(codigoItem: number, compras: CompraPreco[]) {
+  const datas = compras
+    .map((compra) => (compra.dataCompra ? new Date(compra.dataCompra).getTime() : NaN))
+    .filter((tempo) => Number.isFinite(tempo))
+    .sort((a, b) => a - b)
+
+  void prisma.precoResumo.upsert({
+    where: { codigoItem },
+    create: {
+      codigoItem,
+      quantidadeCompras: compras.length,
+      periodoInicio: datas.length ? new Date(datas[0]) : null,
+      periodoFim: datas.length ? new Date(datas[datas.length - 1]) : null,
+    },
+    update: {
+      quantidadeCompras: compras.length,
+      periodoInicio: datas.length ? new Date(datas[0]) : null,
+      periodoFim: datas.length ? new Date(datas[datas.length - 1]) : null,
+    },
+  }).catch(() => {
+    // tabela ausente ou banco indisponível: ignora silenciosamente
+  })
+}
+
 // Fonte primária: cache local (CompraItem). Fallback: API de dados abertos ao vivo.
 // Com `unidadeSigla`, as métricas consideram apenas compras naquela unidade de
 // fornecimento — misturar unidades (ex.: comprimido vs. ampola) distorce a média.
@@ -238,6 +264,8 @@ export async function metricasDoItem(codigoItem: number, unidadeSigla?: string) 
     compras = await comprasDoGoverno(codigoItem)
     origem = 'api-governo'
   }
+
+  registrarResumo(codigoItem, compras)
 
   const unidades = extrairUnidades(compras)
   const siglaNormalizada = (unidadeSigla || '').trim().toUpperCase()

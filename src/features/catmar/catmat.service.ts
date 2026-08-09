@@ -203,7 +203,13 @@ export class CatmatService {
         ])
 
         const total = totalResult[0]?.total ?? 0
-        const items = rows.map((row) => ({ ...toSeed(row), compatibilidade: 100, faixa: 'exato' as const }))
+        const historico = await this.buscarHistoricoPrecos(rows.map((row) => row.codigoItem))
+        const items = rows.map((row) => ({
+          ...toSeed(row),
+          compatibilidade: 100,
+          faixa: 'exato' as const,
+          historicoPrecos: historico.get(row.codigoItem) ?? null,
+        }))
 
         return {
           items: items as unknown as BuscaResultado['items'],
@@ -340,12 +346,14 @@ export class CatmatService {
       const { rows, totalResult, topScoreResult, grupos, classes, pdms } = resultado
       const total = totalResult[0]?.total ?? 0
       const topScore = Number(topScoreResult[0]?.topScore ?? 0)
+      const historico = await this.buscarHistoricoPrecos(rows.map((row) => row.codigoItem))
       const items = rows.map((row) => {
         const compatibilidade = normalizarScore(row.score, topScore)
         return {
           ...toSeed(row),
           compatibilidade,
           faixa: classificarCompatibilidade(compatibilidade, row.ftsMatch),
+          historicoPrecos: historico.get(row.codigoItem) ?? null,
         }
       })
 
@@ -371,6 +379,26 @@ export class CatmatService {
       console.warn('[catmat] Falha ao consultar banco, usando mock:', error)
       return buscarNoMock(params)
     }
+  }
+
+  // Consulta o cache de atividade de preços (PrecoResumo) para os itens da
+  // página. Tabela ausente ou banco fora: retorna vazio, sem afetar a busca.
+  private async buscarHistoricoPrecos(codigos: number[]) {
+    const mapa = new Map<number, { quantidadeCompras: number; periodoFim: string | null; atualizadoEm: string }>()
+    if (!codigos.length) return mapa
+    try {
+      const resumos = await prisma.precoResumo.findMany({ where: { codigoItem: { in: codigos } } })
+      for (const resumo of resumos) {
+        mapa.set(resumo.codigoItem, {
+          quantidadeCompras: resumo.quantidadeCompras,
+          periodoFim: resumo.periodoFim ? resumo.periodoFim.toISOString() : null,
+          atualizadoEm: resumo.atualizadoEm.toISOString(),
+        })
+      }
+    } catch {
+      // sem cache disponível — busca segue sem o selo
+    }
+    return mapa
   }
 
   async obterItem(codigoItem: number) {

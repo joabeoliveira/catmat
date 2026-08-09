@@ -74,6 +74,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   const [sugestaoAtiva, setSugestaoAtiva] = useState(-1)
   const [mostrarSugestoes, setMostrarSugestoes] = useState(false)
   const [filtroFaixa, setFiltroFaixa] = useState<'todos' | 'exato' | 'alta' | 'similar'>('todos')
+  const [priorizarComHistorico, setPriorizarComHistorico] = useState(false)
   const { data, isLoading, error, mutate } = useBuscaItens(initialResults as any)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -396,9 +397,17 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
 
   const resultadosVisiveis = useMemo(() => {
     if (!data?.items?.length) return []
-    if (filtroFaixa === 'todos') return data.items
-    return data.items.filter((item) => item.faixa === filtroFaixa)
-  }, [data?.items, filtroFaixa])
+    let itens = filtroFaixa === 'todos' ? [...data.items] : data.items.filter((item) => item.faixa === filtroFaixa)
+    if (priorizarComHistorico) {
+      // Ordenação estável: itens com compras conhecidas primeiro, mantendo a relevância
+      itens = [...itens].sort((a, b) => {
+        const ha = a.historicoPrecos?.quantidadeCompras ?? -1
+        const hb = b.historicoPrecos?.quantidadeCompras ?? -1
+        return (hb > 0 ? 1 : 0) - (ha > 0 ? 1 : 0)
+      })
+    }
+    return itens
+  }, [data?.items, filtroFaixa, priorizarComHistorico])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (!mostrarSugestoes || !sugestoes.length) return
@@ -558,7 +567,18 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
           ) : resultadosVisiveis.length ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-slate-600 dark:text-slate-400">Encontrados {data?.total ?? 0} resultados</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Encontrados {data?.total ?? 0} resultados</p>
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={priorizarComHistorico}
+                      onChange={(event) => setPriorizarComHistorico(event.target.checked)}
+                      className="h-3.5 w-3.5 accent-cyan-600"
+                    />
+                    Priorizar itens com histórico de preços
+                  </label>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {[
                     { key: 'todos', label: `Todos (${data?.total ?? 0})` },
@@ -589,10 +609,20 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                         <span className="text-sm text-slate-600 dark:text-slate-400">{item.codigoClasse} - {item.nomeClasse}</span>
                       </div>
                       <p className="font-medium text-slate-900 dark:text-white">{item.descricaoItem}</p>
-                      <div className="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
                         <span>PDM: {item.codigoPdm}</span>
                         <span>NCM: {item.codigoNcm || '-'}</span>
                         {item.aplicaMargemPreferencia && <Badge variant="secondary">Margem preferência</Badge>}
+                        {item.historicoPrecos && item.historicoPrecos.quantidadeCompras > 0 && (
+                          <Badge className="border-emerald-500/40 bg-emerald-100 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300">
+                            ✓ {item.historicoPrecos.quantidadeCompras >= 500 ? '500+' : item.historicoPrecos.quantidadeCompras} compras registradas
+                          </Badge>
+                        )}
+                        {item.historicoPrecos && item.historicoPrecos.quantidadeCompras === 0 && (
+                          <Badge className="border-amber-500/40 bg-amber-100 dark:bg-amber-600/20 text-amber-700 dark:text-amber-300">
+                            Sem compras recentes
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">

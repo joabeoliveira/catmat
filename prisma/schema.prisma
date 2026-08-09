@@ -51,6 +51,17 @@ model CatserItem {
   @@index([nomeServico])
 }
 
+// Resumo de atividade de preços por item, preenchido pelo uso
+// (toda consulta de preços grava aqui) — alimenta o selo "tem histórico"
+// na busca sem precisar varrer a API do governo
+model PrecoResumo {
+  codigoItem        Int       @id
+  quantidadeCompras Int
+  periodoInicio     DateTime?
+  periodoFim        DateTime?
+  atualizadoEm      DateTime  @default(now()) @updatedAt
+}
+
 // Cache de compras da API do governo
 model CompraItem {
   id               String   @id @default(cuid())
