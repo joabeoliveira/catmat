@@ -25,7 +25,8 @@ export async function generateMetadata({ searchParams }: HomePageProps): Promise
 export default async function HomePage({ searchParams }: HomePageProps) {
   const service = new CatmatService()
   const q = searchParams?.q?.trim() || ''
-  const initialResults = q
+  const temFiltros = Boolean(searchParams?.grupo || searchParams?.classe || searchParams?.pdm)
+  const initialResults = (q || temFiltros)
     ? await service.buscarItens({
         termo: q,
         pagina: Number(searchParams?.pagina || 1),
