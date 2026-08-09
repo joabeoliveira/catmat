@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { CopiarCodigoButton } from '@/components/shared/CopiarCodigoButton'
 import { FavoritoButton } from '@/components/shared/FavoritoButton'
+import { VoltarButton } from '@/components/shared/VoltarButton'
 import { GraficoDispersaoPrecos } from '@/components/shared/GraficoDispersaoPrecos'
 import { CatmatService } from '@/features/catmar/catmat.service'
 import { getSiteUrl } from '@/lib/site-config'
@@ -120,6 +121,9 @@ export default async function MaterialPage({ params }: MaterialPageProps) {
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
+        <div className="flex flex-wrap items-center gap-3">
+          <VoltarButton />
+        </div>
         <nav aria-label="Caminho" className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
           <Link href="/" className="hover:text-cyan-400">Início</Link>
           <span>/</span>
