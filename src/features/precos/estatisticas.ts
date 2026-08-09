@@ -8,6 +8,26 @@ export interface CompraPreco {
   unidadeSigla?: string | null
   unidadeNome?: string | null
   unidadeCapacidade?: number | null
+  quantidade?: number | null
+  orgao?: string | null
+  uasg?: string | null
+  fornecedor?: string | null
+  municipio?: string | null
+  estado?: string | null
+  marca?: string | null
+}
+
+export interface CompraDetalhe {
+  precoUnitario: number
+  dataCompra: string | null
+  unidade: string | null
+  quantidade: number | null
+  orgao: string | null
+  uasg: string | null
+  fornecedor: string | null
+  municipio: string | null
+  estado: string | null
+  marca: string | null
 }
 
 export interface UnidadeDisponivel {
@@ -114,6 +134,13 @@ async function comprasDoBanco(codigoItem: number): Promise<CompraPreco[]> {
         siglaUnidadeFornecimento: true,
         nomeUnidadeFornecimento: true,
         capacidadeUnidadeFornecimento: true,
+        quantidade: true,
+        nomeOrgao: true,
+        nomeUasg: true,
+        nomeFornecedor: true,
+        municipio: true,
+        estado: true,
+        marca: true,
       },
     })
     return rows.map((row) => ({
@@ -122,6 +149,13 @@ async function comprasDoBanco(codigoItem: number): Promise<CompraPreco[]> {
       unidadeSigla: row.siglaUnidadeFornecimento,
       unidadeNome: row.nomeUnidadeFornecimento,
       unidadeCapacidade: row.capacidadeUnidadeFornecimento,
+      quantidade: row.quantidade,
+      orgao: row.nomeOrgao,
+      uasg: row.nomeUasg,
+      fornecedor: row.nomeFornecedor,
+      municipio: row.municipio,
+      estado: row.estado,
+      marca: row.marca,
     }))
   } catch {
     return []
@@ -150,12 +184,20 @@ async function comprasDoGoverno(codigoItem: number): Promise<CompraPreco[]> {
 
     const payload = await response.json().catch(() => null)
     const resultado = Array.isArray(payload?.resultado) ? payload.resultado : []
+    const texto = (valor: unknown) => (typeof valor === 'string' && valor.trim() ? valor.trim() : null)
     return resultado.map((compra: Record<string, unknown>) => ({
       precoUnitario: Number(compra.precoUnitario),
-      dataCompra: typeof compra.dataCompra === 'string' ? compra.dataCompra : null,
-      unidadeSigla: typeof compra.siglaUnidadeFornecimento === 'string' ? compra.siglaUnidadeFornecimento : null,
-      unidadeNome: typeof compra.nomeUnidadeFornecimento === 'string' ? compra.nomeUnidadeFornecimento : null,
+      dataCompra: texto(compra.dataCompra),
+      unidadeSigla: texto(compra.siglaUnidadeFornecimento),
+      unidadeNome: texto(compra.nomeUnidadeFornecimento),
       unidadeCapacidade: typeof compra.capacidadeUnidadeFornecimento === 'number' ? compra.capacidadeUnidadeFornecimento : null,
+      quantidade: typeof compra.quantidade === 'number' ? compra.quantidade : null,
+      orgao: texto(compra.nomeOrgao),
+      uasg: texto(compra.nomeUasg),
+      fornecedor: texto(compra.nomeFornecedor),
+      municipio: texto(compra.municipio),
+      estado: texto(compra.estado),
+      marca: texto(compra.marca),
     }))
   }
 
@@ -189,11 +231,28 @@ export async function metricasDoItem(codigoItem: number, unidadeSigla?: string) 
     ? compras.filter((compra) => (compra.unidadeSigla || '').trim().toUpperCase() === siglaNormalizada)
     : compras
 
+  const comprasRecentes: CompraDetalhe[] = [...consideradas]
+    .sort((a, b) => new Date(b.dataCompra ?? 0).getTime() - new Date(a.dataCompra ?? 0).getTime())
+    .slice(0, 10)
+    .map((compra) => ({
+      precoUnitario: Number(compra.precoUnitario),
+      dataCompra: compra.dataCompra ? new Date(compra.dataCompra).toISOString() : null,
+      unidade: compra.unidadeNome || compra.unidadeSigla || null,
+      quantidade: compra.quantidade ?? null,
+      orgao: compra.orgao ?? null,
+      uasg: compra.uasg ?? null,
+      fornecedor: compra.fornecedor ?? null,
+      municipio: compra.municipio ?? null,
+      estado: compra.estado ?? null,
+      marca: compra.marca ?? null,
+    }))
+
   return {
     ...calcularMetricas(consideradas),
     origem,
     fonte: FONTE_PRECOS,
     unidades,
     unidadeSelecionada: siglaNormalizada || null,
+    comprasRecentes,
   }
 }

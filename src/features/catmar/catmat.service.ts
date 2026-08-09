@@ -399,6 +399,8 @@ export class CatmatService {
         quantidadeOutliersRemovidos: 0,
         periodoInicio: null,
         periodoFim: null,
+        unidades: [],
+        comprasRecentes: [],
       }
     }
   }
