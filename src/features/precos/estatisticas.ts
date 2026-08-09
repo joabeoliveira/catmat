@@ -5,6 +5,16 @@ export const FONTE_PRECOS = 'Compras.gov.br / PNCP'
 export interface CompraPreco {
   precoUnitario: number
   dataCompra: string | Date | null
+  unidadeSigla?: string | null
+  unidadeNome?: string | null
+  unidadeCapacidade?: number | null
+}
+
+export interface UnidadeDisponivel {
+  sigla: string
+  nome: string
+  capacidade: number | null
+  quantidadeCompras: number
 }
 
 export interface MetricasPrecoItem {
@@ -74,12 +84,45 @@ export function calcularMetricas(compras: CompraPreco[]): MetricasPrecoItem {
   }
 }
 
+export function extrairUnidades(compras: CompraPreco[]): UnidadeDisponivel[] {
+  const unidades = new Map<string, UnidadeDisponivel>()
+  for (const compra of compras) {
+    const sigla = (compra.unidadeSigla || '').trim().toUpperCase()
+    if (!sigla) continue
+    const atual = unidades.get(sigla)
+    if (atual) {
+      atual.quantidadeCompras += 1
+    } else {
+      unidades.set(sigla, {
+        sigla,
+        nome: (compra.unidadeNome || sigla).trim(),
+        capacidade: typeof compra.unidadeCapacidade === 'number' ? compra.unidadeCapacidade : null,
+        quantidadeCompras: 1,
+      })
+    }
+  }
+  return [...unidades.values()].sort((a, b) => b.quantidadeCompras - a.quantidadeCompras)
+}
+
 async function comprasDoBanco(codigoItem: number): Promise<CompraPreco[]> {
   try {
-    return await prisma.compraItem.findMany({
+    const rows = await prisma.compraItem.findMany({
       where: { codigoItemCatalogo: codigoItem },
-      select: { precoUnitario: true, dataCompra: true },
+      select: {
+        precoUnitario: true,
+        dataCompra: true,
+        siglaUnidadeFornecimento: true,
+        nomeUnidadeFornecimento: true,
+        capacidadeUnidadeFornecimento: true,
+      },
     })
+    return rows.map((row) => ({
+      precoUnitario: row.precoUnitario,
+      dataCompra: row.dataCompra,
+      unidadeSigla: row.siglaUnidadeFornecimento,
+      unidadeNome: row.nomeUnidadeFornecimento,
+      unidadeCapacidade: row.capacidadeUnidadeFornecimento,
+    }))
   } catch {
     return []
   }
@@ -110,6 +153,9 @@ async function comprasDoGoverno(codigoItem: number): Promise<CompraPreco[]> {
     return resultado.map((compra: Record<string, unknown>) => ({
       precoUnitario: Number(compra.precoUnitario),
       dataCompra: typeof compra.dataCompra === 'string' ? compra.dataCompra : null,
+      unidadeSigla: typeof compra.siglaUnidadeFornecimento === 'string' ? compra.siglaUnidadeFornecimento : null,
+      unidadeNome: typeof compra.nomeUnidadeFornecimento === 'string' ? compra.nomeUnidadeFornecimento : null,
+      unidadeCapacidade: typeof compra.capacidadeUnidadeFornecimento === 'number' ? compra.capacidadeUnidadeFornecimento : null,
     }))
   }
 
@@ -126,7 +172,9 @@ async function comprasDoGoverno(codigoItem: number): Promise<CompraPreco[]> {
 }
 
 // Fonte primária: cache local (CompraItem). Fallback: API de dados abertos ao vivo.
-export async function metricasDoItem(codigoItem: number) {
+// Com `unidadeSigla`, as métricas consideram apenas compras naquela unidade de
+// fornecimento — misturar unidades (ex.: comprimido vs. ampola) distorce a média.
+export async function metricasDoItem(codigoItem: number, unidadeSigla?: string) {
   let compras = await comprasDoBanco(codigoItem)
   let origem: 'banco-local' | 'api-governo' = 'banco-local'
 
@@ -135,5 +183,17 @@ export async function metricasDoItem(codigoItem: number) {
     origem = 'api-governo'
   }
 
-  return { ...calcularMetricas(compras), origem, fonte: FONTE_PRECOS }
+  const unidades = extrairUnidades(compras)
+  const siglaNormalizada = (unidadeSigla || '').trim().toUpperCase()
+  const consideradas = siglaNormalizada
+    ? compras.filter((compra) => (compra.unidadeSigla || '').trim().toUpperCase() === siglaNormalizada)
+    : compras
+
+  return {
+    ...calcularMetricas(consideradas),
+    origem,
+    fonte: FONTE_PRECOS,
+    unidades,
+    unidadeSelecionada: siglaNormalizada || null,
+  }
 }

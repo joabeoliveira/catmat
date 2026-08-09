@@ -14,7 +14,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ erro: 'Parâmetro codigoItem inválido' }, { status: 400 })
   }
 
-  const metricas = await metricasDoItem(codigoItem)
+  const unidade = (searchParams.get('unidade') || '').trim().slice(0, 30) || undefined
+  const metricas = await metricasDoItem(codigoItem, unidade)
   return NextResponse.json(
     { metricas },
     { headers: { 'Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400' } },

@@ -22,6 +22,13 @@ interface BuscaAvancadaProps {
   initialResults?: unknown
 }
 
+interface GradeUnidade {
+  sigla: string
+  nome: string
+  capacidade: number | null
+  quantidadeCompras: number
+}
+
 type GradeItem = Record<string, unknown> & {
   codigoItem: number
   descricaoItem: string
@@ -32,6 +39,8 @@ type GradeItem = Record<string, unknown> & {
   periodoInicio?: string | null
   periodoFim?: string | null
   fonte?: string
+  unidade?: string | null
+  unidades?: GradeUnidade[]
   metricas?: Record<string, number | string | null | undefined>
 }
 
@@ -160,10 +169,24 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     if (existe) return
 
     let metricas: Record<string, number | string | null | undefined> | undefined
+    let unidades: GradeUnidade[] = []
+    let unidadeEscolhida: string | null = null
     try {
       const response = await fetch(`/api/catmat/precos?codigoItem=${item.codigoItem}`)
       const payload = await response.json()
       metricas = payload?.metricas
+      unidades = Array.isArray(payload?.metricas?.unidades) ? payload.metricas.unidades : []
+
+      // Sugestão automática: unidade mais frequente nas compras; com mais de uma
+      // unidade, refaz as métricas só com ela (misturar unidades distorce a média)
+      if (unidades.length) {
+        unidadeEscolhida = unidades[0].sigla
+        if (unidades.length > 1) {
+          const detalhe = await fetch(`/api/catmat/precos?codigoItem=${item.codigoItem}&unidade=${encodeURIComponent(unidadeEscolhida)}`)
+          const payloadDetalhe = await detalhe.json()
+          if (payloadDetalhe?.metricas) metricas = payloadDetalhe.metricas
+        }
+      }
     } catch {
       metricas = undefined
     }
@@ -171,7 +194,8 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     const media = typeof metricas?.media === 'number' ? metricas.media : null
     const novoItem: GradeItem = {
       ...item,
-      unidade: null,
+      unidade: unidadeEscolhida,
+      unidades,
       precoReferencia: media,
       criterioPreco: 'media',
       precoPersonalizado: null,
@@ -217,6 +241,28 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
 
     const base = typeof metricas[criterio] === 'number' ? metricas[criterio] : metricas.media
     return typeof base === 'number' ? Number(base.toFixed(2)) : 0
+  }
+
+  const alterarUnidadeGrade = async (index: number, sigla: string) => {
+    const item = gradeItens[index]
+    if (!item) return
+    try {
+      const url = sigla
+        ? `/api/catmat/precos?codigoItem=${item.codigoItem}&unidade=${encodeURIComponent(sigla)}`
+        : `/api/catmat/precos?codigoItem=${item.codigoItem}`
+      const response = await fetch(url)
+      const payload = await response.json()
+      const metricas = payload?.metricas
+      const media = typeof metricas?.media === 'number' ? metricas.media : null
+      atualizarItemGrade(index, {
+        unidade: sigla || null,
+        metricas,
+        precoUnitario: media,
+        quantidadeCompras: typeof metricas?.quantidadeCompras === 'number' ? metricas.quantidadeCompras : 0,
+      })
+    } catch {
+      atualizarItemGrade(index, { unidade: sigla || null })
+    }
   }
 
   const atualizarItemGrade = (index: number, atualizacao: Partial<GradeItem>) => {
@@ -612,6 +658,22 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                 <div key={`${item.codigoItem}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
                   <div className="font-medium text-white">{item.descricaoItem}</div>
                   <div className="mt-2 text-xs text-slate-500">CATMAT {item.codigoItem}</div>
+                  {Array.isArray(item.unidades) && item.unidades.length > 0 && (
+                    <>
+                      <label className="mt-2 block text-xs text-slate-400">Unidade de fornecimento</label>
+                      <Select
+                        value={item.unidade || ''}
+                        onChange={(event) => void alterarUnidadeGrade(index, event.target.value)}
+                      >
+                        <option value="">Todas as unidades</option>
+                        {item.unidades.map((unidade) => (
+                          <option key={unidade.sigla} value={unidade.sigla}>
+                            {unidade.sigla} — {unidade.nome}{unidade.capacidade ? ` (${unidade.capacidade})` : ''} · {unidade.quantidadeCompras} compras
+                          </option>
+                        ))}
+                      </Select>
+                    </>
+                  )}
                   <Select
                     value={item.criterioPreco || 'media'}
                     onChange={(event) => atualizarItemGrade(index, { criterioPreco: event.target.value, precoUnitario: calcularPrecoSelecionado({ ...item, criterioPreco: event.target.value }) })}
@@ -631,7 +693,12 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                       onChange={(event) => atualizarItemGrade(index, { precoPersonalizado: Number(event.target.value) || 0 })}
                     />
                   )}
-                  <div className="mt-2 text-xs text-slate-400">Preço: {formatarMoeda(calcularPrecoSelecionado(item))}</div>
+                  <div className="mt-2 text-xs text-slate-400">
+                    Preço: {formatarMoeda(calcularPrecoSelecionado(item))}
+                    {typeof item.metricas?.amostras === 'number' && item.metricas.amostras > 0 && (
+                      <span className="text-slate-500"> · {item.metricas.amostras} compras consideradas</span>
+                    )}
+                  </div>
                 </div>
               )) : <p className="text-sm text-slate-500">Adicione itens para construir a grade.</p>}
               <Button type="button" variant="outline" className="w-full" onClick={exportarCsv}>
