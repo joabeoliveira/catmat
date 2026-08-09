@@ -161,11 +161,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
 
     let metricas: Record<string, number | string | null | undefined> | undefined
     try {
-      const response = await fetch('/api/catmat/precos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigoItem: item.codigoItem }),
-      })
+      const response = await fetch(`/api/catmat/precos?codigoItem=${item.codigoItem}`)
       const payload = await response.json()
       metricas = payload?.metricas
     } catch {

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
+import { metricasDoItem } from '@/features/precos/estatisticas'
 import { catmatMockData, type CatmatItemSeed } from './mock-data'
 import type { BuscaFiltros, BuscaParams, BuscaResultado, BuscaItem, FiltroFacetado, ContagensCompatibilidade } from './catmat.types'
 
@@ -383,52 +384,9 @@ export class CatmatService {
 
   async obterEstatisticasPreco(codigoItem: number) {
     try {
-      const compras = await prisma.compraItem.findMany({
-        where: { codigoItemCatalogo: codigoItem },
-        select: { precoUnitario: true, dataCompra: true },
-        orderBy: { dataCompra: 'asc' },
-      })
-
-      const precos = compras.map((compra) => Number(compra.precoUnitario)).filter((valor) => Number.isFinite(valor) && valor > 0)
-      if (!precos.length) {
-        return {
-          media: 0,
-          mediana: 0,
-          menor: 0,
-          maior: 0,
-          amostras: 0,
-          quantidadeCompras: 0,
-          quantidadeOutliersRemovidos: 0,
-          periodoInicio: null,
-          periodoFim: null,
-        }
-      }
-
-      const sorted = [...precos].sort((a, b) => a - b)
-      const q1 = sorted[Math.floor(sorted.length * 0.25)] ?? 0
-      const q3 = sorted[Math.floor(sorted.length * 0.75)] ?? 0
-      const iqr = q3 - q1
-      const limiteInferior = q1 - 1.5 * iqr
-      const limiteSuperior = q3 + 1.5 * iqr
-      const precosFiltrados = sorted.filter((valor) => valor >= limiteInferior && valor <= limiteSuperior)
-      const outliers = sorted.filter((valor) => valor < limiteInferior || valor > limiteSuperior)
-      const sum = precosFiltrados.reduce((total, valor) => total + valor, 0)
-      const media = precosFiltrados.length ? sum / precosFiltrados.length : 0
-      const mediana = precosFiltrados.length % 2 === 0
-        ? (precosFiltrados[Math.floor(precosFiltrados.length / 2) - 1] + precosFiltrados[precosFiltrados.length / 2]) / 2
-        : precosFiltrados[Math.floor(precosFiltrados.length / 2)]
-
-      return {
-        media: Number(media.toFixed(2)),
-        mediana: Number(mediana.toFixed(2)),
-        menor: Number((precosFiltrados[0] ?? 0).toFixed(2)),
-        maior: Number((precosFiltrados[precosFiltrados.length - 1] ?? 0).toFixed(2)),
-        amostras: precosFiltrados.length,
-        quantidadeCompras: compras.length,
-        quantidadeOutliersRemovidos: outliers.length,
-        periodoInicio: compras[0]?.dataCompra ? new Date(compras[0].dataCompra).toISOString() : null,
-        periodoFim: compras[compras.length - 1]?.dataCompra ? new Date(compras[compras.length - 1].dataCompra).toISOString() : null,
-      }
+      // Lógica compartilhada com /api/catmat/precos: banco local com fallback
+      // para a API de dados abertos do governo (contrato vigente)
+      return await metricasDoItem(codigoItem)
     } catch (error) {
       console.warn('[catmat] Falha ao calcular estatísticas de preço:', error)
       return {
