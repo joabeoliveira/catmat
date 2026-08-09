@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { CopiarCodigoButton } from '@/components/shared/CopiarCodigoButton'
+import { GraficoDispersaoPrecos } from '@/components/shared/GraficoDispersaoPrecos'
 import { CatmatService } from '@/features/catmar/catmat.service'
 import { getSiteUrl } from '@/lib/site-config'
 
@@ -204,6 +205,18 @@ export default async function MaterialPage({ params }: MaterialPageProps) {
             )}
           </div>
         </div>
+
+        {Array.isArray(estatisticas?.seriePrecos) && estatisticas.seriePrecos.length >= 3 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
+            <h2 className="text-xl font-semibold text-white">Dispersão de preços</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              {estatisticas.seriePrecos.length} preços licitados ao longo do tempo, com outliers destacados.
+            </p>
+            <div className="mt-4">
+              <GraficoDispersaoPrecos pontos={estatisticas.seriePrecos} mediana={estatisticas.mediana} limiteSuperior={estatisticas.limiteSuperior} />
+            </div>
+          </div>
+        )}
 
         {comprasRecentes.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">

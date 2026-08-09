@@ -47,6 +47,16 @@ export interface MetricasPrecoItem {
   quantidadeOutliersRemovidos: number
   periodoInicio: string | null
   periodoFim: string | null
+  limiteInferior: number | null
+  limiteSuperior: number | null
+}
+
+export interface PontoPreco {
+  data: string
+  preco: number
+  outlier: boolean
+  unidade: string | null
+  orgao: string | null
 }
 
 function metricasVazias(): MetricasPrecoItem {
@@ -60,6 +70,8 @@ function metricasVazias(): MetricasPrecoItem {
     quantidadeOutliersRemovidos: 0,
     periodoInicio: null,
     periodoFim: null,
+    limiteInferior: null,
+    limiteSuperior: null,
   }
 }
 
@@ -101,6 +113,8 @@ export function calcularMetricas(compras: CompraPreco[]): MetricasPrecoItem {
     quantidadeOutliersRemovidos: outliers.length,
     periodoInicio: datas.length ? new Date(datas[0]).toISOString() : null,
     periodoFim: datas.length ? new Date(datas[datas.length - 1]).toISOString() : null,
+    limiteInferior: Number(limiteInferior.toFixed(4)),
+    limiteSuperior: Number(limiteSuperior.toFixed(4)),
   }
 }
 
@@ -231,6 +245,28 @@ export async function metricasDoItem(codigoItem: number, unidadeSigla?: string) 
     ? compras.filter((compra) => (compra.unidadeSigla || '').trim().toUpperCase() === siglaNormalizada)
     : compras
 
+  const metricas = calcularMetricas(consideradas)
+
+  // Série para o gráfico de dispersão: até 200 compras com data válida,
+  // cada uma marcada como outlier ou não pelos limites do IQR
+  const seriePrecos: PontoPreco[] = consideradas
+    .filter((compra) => compra.dataCompra && Number.isFinite(Number(compra.precoUnitario)) && Number(compra.precoUnitario) > 0)
+    .sort((a, b) => new Date(a.dataCompra as string | Date).getTime() - new Date(b.dataCompra as string | Date).getTime())
+    .slice(-200)
+    .map((compra) => {
+      const preco = Number(compra.precoUnitario)
+      const outlier = metricas.limiteInferior !== null && metricas.limiteSuperior !== null
+        ? preco < metricas.limiteInferior || preco > metricas.limiteSuperior
+        : false
+      return {
+        data: new Date(compra.dataCompra as string | Date).toISOString(),
+        preco,
+        outlier,
+        unidade: compra.unidadeNome || compra.unidadeSigla || null,
+        orgao: compra.orgao ?? null,
+      }
+    })
+
   const comprasRecentes: CompraDetalhe[] = [...consideradas]
     .sort((a, b) => new Date(b.dataCompra ?? 0).getTime() - new Date(a.dataCompra ?? 0).getTime())
     .slice(0, 10)
@@ -248,11 +284,12 @@ export async function metricasDoItem(codigoItem: number, unidadeSigla?: string) 
     }))
 
   return {
-    ...calcularMetricas(consideradas),
+    ...metricas,
     origem,
     fonte: FONTE_PRECOS,
     unidades,
     unidadeSelecionada: siglaNormalizada || null,
     comprasRecentes,
+    seriePrecos,
   }
 }
