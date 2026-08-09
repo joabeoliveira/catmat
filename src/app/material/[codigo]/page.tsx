@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { CopiarCodigoButton } from '@/components/shared/CopiarCodigoButton'
+import { FavoritoButton } from '@/components/shared/FavoritoButton'
 import { GraficoDispersaoPrecos } from '@/components/shared/GraficoDispersaoPrecos'
 import { CatmatService } from '@/features/catmar/catmat.service'
 import { getSiteUrl } from '@/lib/site-config'
@@ -133,7 +134,13 @@ export default async function MaterialPage({ params }: MaterialPageProps) {
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-400">Material</p>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-3xl font-semibold text-white">{item.nomePdm}</h1>
-            <CopiarCodigoButton codigo={item.codigoItem} />
+            <div className="flex items-center gap-2">
+              <FavoritoButton
+                comTexto
+                item={{ codigoItem: item.codigoItem, descricaoItem: item.descricaoItem, nomePdm: item.nomePdm }}
+              />
+              <CopiarCodigoButton codigo={item.codigoItem} />
+            </div>
           </div>
           <p className="mt-3 text-sm text-slate-300">{item.descricaoItem}</p>
           <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-400">

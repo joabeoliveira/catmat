@@ -382,6 +382,28 @@ export class CatmatService {
     }
   }
 
+  async listarGrupos(): Promise<Array<{ codigo: number; nome: string; quantidade: number }>> {
+    try {
+      const grupos = await prisma.$queryRaw<Array<{ codigo: number; nome: string; quantidade: number }>>`
+        SELECT "codigoGrupo" AS codigo, "nomeGrupo" AS nome, COUNT(*)::int AS quantidade
+        FROM "CatmatItem"
+        GROUP BY "codigoGrupo", "nomeGrupo"
+        ORDER BY "nomeGrupo" ASC
+      `
+      if (grupos.length) return grupos
+    } catch (error) {
+      console.warn('[catmat] Falha ao listar grupos, usando mock:', error)
+    }
+
+    const porGrupo = new Map<number, { codigo: number; nome: string; quantidade: number }>()
+    for (const item of catmatMockData) {
+      const atual = porGrupo.get(item.codigoGrupo)
+      if (atual) atual.quantidade += 1
+      else porGrupo.set(item.codigoGrupo, { codigo: item.codigoGrupo, nome: item.nomeGrupo, quantidade: 1 })
+    }
+    return [...porGrupo.values()].sort((a, b) => a.nome.localeCompare(b.nome))
+  }
+
   async obterEstatisticasPreco(codigoItem: number) {
     try {
       // Lógica compartilhada com /api/catmat/precos: banco local com fallback

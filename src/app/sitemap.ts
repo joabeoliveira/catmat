@@ -20,6 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     return [
       { url: `${baseUrl}/`, changeFrequency: 'weekly', priority: 1 },
+      { url: `${baseUrl}/grupos`, changeFrequency: 'weekly', priority: 0.9 },
       ...itens.map((item) => ({ url: `${baseUrl}/material/${item.codigoItem}`, changeFrequency: 'monthly' as const, priority: 0.8 })),
     ]
   } catch (error) {

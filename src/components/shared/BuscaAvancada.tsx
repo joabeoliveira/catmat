@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { FavoritoButton } from '@/components/shared/FavoritoButton'
 import { useBuscaItens, type BuscaItem } from '@/hooks/useBuscaItens'
 
 const badgeClasses = {
@@ -65,6 +66,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   const { data, isLoading, error, mutate } = useBuscaItens(initialResults as any)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const digitouRef = useRef(false)
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -145,7 +147,9 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
         .then((result) => {
           if (!controller.signal.aborted) {
             setSugestoes(Array.isArray(result) ? result : [])
-            setMostrarSugestoes(true)
+            // Só abre o dropdown se o termo veio de digitação do usuário
+            // (termo preenchido pela URL no carregamento não deve abrir)
+            setMostrarSugestoes(digitouRef.current)
           }
         })
         .catch(() => {
@@ -393,6 +397,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   }
 
   const aplicarSugestao = (sugestao: string) => {
+    digitouRef.current = false
     setTermo(sugestao)
     setMostrarSugestoes(false)
     void carregarBusca(1, { termo: sugestao })
@@ -404,6 +409,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
         <form
           onSubmit={(event) => {
             event.preventDefault()
+            digitouRef.current = false
             setMostrarSugestoes(false)
             void carregarBusca(1)
           }}
@@ -423,7 +429,10 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                     aria-label="Buscar no catálogo CATMAT"
                     placeholder="Ex: papel couche, notebook, software"
                     value={termo}
-                    onChange={(event) => setTermo(event.target.value)}
+                    onChange={(event) => {
+                      digitouRef.current = true
+                      setTermo(event.target.value)
+                    }}
                     onKeyDown={handleKeyDown}
                     role="combobox"
                     aria-expanded={mostrarSugestoes && !!sugestoes.length}
@@ -578,6 +587,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                         {copiadoCodigo === item.codigoItem ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
                         {copiadoCodigo === item.codigoItem ? 'Copiado!' : 'Copiar código'}
                       </Button>
+                      <FavoritoButton item={{ codigoItem: item.codigoItem, descricaoItem: item.descricaoItem, nomePdm: item.nomePdm }} />
                     </div>
                   </CardContent>
                 </Card>
