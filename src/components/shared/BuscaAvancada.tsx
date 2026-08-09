@@ -75,6 +75,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   const [mostrarSugestoes, setMostrarSugestoes] = useState(false)
   const [filtroFaixa, setFiltroFaixa] = useState<'todos' | 'exato' | 'alta' | 'similar'>('todos')
   const [priorizarComHistorico, setPriorizarComHistorico] = useState(false)
+  const [refinamento, setRefinamento] = useState('')
   const { data, isLoading, error, mutate } = useBuscaItens(initialResults as any)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -83,10 +84,11 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  const sincronizarUrl = (nextTermo: string, nextGrupo: string, nextClasse: string, nextPdm: string, nextPagina: number) => {
+  const sincronizarUrl = (nextTermo: string, nextGrupo: string, nextClasse: string, nextPdm: string, nextPagina: number, nextRefinar: string) => {
     const params = new URLSearchParams()
     const termoLimpo = nextTermo.trim()
     if (termoLimpo) params.set('q', termoLimpo)
+    if (nextRefinar.trim()) params.set('refinar', nextRefinar.trim())
     if (nextGrupo) params.set('grupo', nextGrupo)
     if (nextClasse) params.set('classe', nextClasse)
     if (nextPdm) params.set('pdm', nextPdm)
@@ -96,14 +98,17 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     router.push(target, { scroll: false })
   }
 
-  const carregarBusca = async (novaPagina = 1, overrides?: { termo?: string; grupo?: string; classe?: string; pdm?: string }) => {
+  const carregarBusca = async (novaPagina = 1, overrides?: { termo?: string; grupo?: string; classe?: string; pdm?: string; refinar?: string }) => {
     const proximoTermo = overrides?.termo ?? termo
     const proximoGrupo = overrides?.grupo ?? codigoGrupo
     const proximoClasse = overrides?.classe ?? codigoClasse
     const proximoPdm = overrides?.pdm ?? codigoPdm
+    const proximoRefinar = (overrides?.refinar ?? refinamento).trim()
 
     await mutate({
-      termo: proximoTermo,
+      // O refino entra como palavras adicionais na consulta full-text (E-lógico):
+      // "caneta esferográfica" + "preta" filtra todo o conjunto, não só a página
+      termo: [proximoTermo, proximoRefinar].filter(Boolean).join(' '),
       pagina: novaPagina,
       limite: 12,
       filtros: {
@@ -114,18 +119,20 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
       },
     })
     setPagina(novaPagina)
-    sincronizarUrl(proximoTermo, proximoGrupo, proximoClasse, proximoPdm, novaPagina)
+    sincronizarUrl(proximoTermo, proximoGrupo, proximoClasse, proximoPdm, novaPagina, proximoRefinar)
   }
 
   useEffect(() => {
     const qParam = searchParams?.get('q') || ''
+    const refinarParam = searchParams?.get('refinar') || ''
     const grupoParam = searchParams?.get('grupo') || ''
     const classeParam = searchParams?.get('classe') || ''
     const pdmParam = searchParams?.get('pdm') || ''
     const paginaParam = Number(searchParams?.get('pagina') || 1)
 
-    if (!qParam && !grupoParam && !classeParam && !pdmParam && paginaParam === 1) {
+    if (!qParam && !refinarParam && !grupoParam && !classeParam && !pdmParam && paginaParam === 1) {
       setTermo('')
+      setRefinamento('')
       setCodigoGrupo('')
       setCodigoClasse('')
       setCodigoPdm('')
@@ -134,6 +141,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     }
 
     setTermo(qParam)
+    setRefinamento(refinarParam)
     setCodigoGrupo(grupoParam)
     setCodigoClasse(classeParam)
     setCodigoPdm(pdmParam)
@@ -569,6 +577,35 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-3">
                   <p className="text-sm text-slate-600 dark:text-slate-400">Encontrados {data?.total ?? 0} resultados</p>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      aria-label="Refinar resultados com palavras do descritivo"
+                      placeholder="Refinar: ex. preta, 500mg…"
+                      value={refinamento}
+                      onChange={(event) => setRefinamento(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          void carregarBusca(1, { refinar: refinamento })
+                        }
+                      }}
+                      className="h-8 w-48 text-sm"
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={() => void carregarBusca(1, { refinar: refinamento })}>
+                      Refinar
+                    </Button>
+                    {refinamento.trim() && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setRefinamento(''); void carregarBusca(1, { refinar: '' }) }}
+                        aria-label="Limpar refinamento"
+                      >
+                        ✕
+                      </Button>
+                    )}
+                  </div>
                   <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                     <input
                       type="checkbox"

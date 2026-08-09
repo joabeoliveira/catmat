@@ -4,7 +4,7 @@ import { CatmatService } from '@/features/catmar/catmat.service'
 import { getSiteUrl } from '@/lib/site-config'
 
 interface HomePageProps {
-  searchParams?: { q?: string; grupo?: string; classe?: string; pdm?: string; pagina?: string }
+  searchParams?: { q?: string; refinar?: string; grupo?: string; classe?: string; pdm?: string; pagina?: string }
 }
 
 export async function generateMetadata({ searchParams }: HomePageProps): Promise<Metadata> {
@@ -25,10 +25,11 @@ export async function generateMetadata({ searchParams }: HomePageProps): Promise
 export default async function HomePage({ searchParams }: HomePageProps) {
   const service = new CatmatService()
   const q = searchParams?.q?.trim() || ''
+  const refinar = searchParams?.refinar?.trim() || ''
   const temFiltros = Boolean(searchParams?.grupo || searchParams?.classe || searchParams?.pdm)
   const initialResults = (q || temFiltros)
     ? await service.buscarItens({
-        termo: q,
+        termo: [q, refinar].filter(Boolean).join(' '),
         pagina: Number(searchParams?.pagina || 1),
         limite: 12,
         filtros: {
