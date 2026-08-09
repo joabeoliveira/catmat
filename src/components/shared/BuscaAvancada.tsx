@@ -23,9 +23,9 @@ import {
 } from '@/lib/grades'
 
 const badgeClasses = {
-  exato: 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40',
-  alta: 'bg-sky-600/20 text-sky-300 border-sky-500/40',
-  similar: 'bg-slate-600/20 text-slate-300 border-slate-500/40',
+  exato: 'bg-emerald-100 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40',
+  alta: 'bg-sky-100 dark:bg-sky-600/20 text-sky-700 dark:text-sky-300 border-sky-500/40',
+  similar: 'bg-slate-200 dark:bg-slate-600/20 text-slate-700 dark:text-slate-300 border-slate-500/40',
 }
 
 interface BuscaAvancadaProps {
@@ -465,14 +465,14 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                     aria-activedescendant={sugestaoAtiva >= 0 ? `sugestao-${sugestaoAtiva}` : undefined}
                   />
                   {mostrarSugestoes && sugestoes.length > 0 && (
-                    <ul id="sugestoes-busca" role="listbox" className="absolute z-20 mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 shadow-xl">
+                    <ul id="sugestoes-busca" role="listbox" className="absolute z-20 mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
                       {sugestoes.map((sugestao, index) => (
                         <li
                           key={sugestao}
                           id={`sugestao-${index}`}
                           role="option"
                           aria-selected={index === sugestaoAtiva}
-                          className={`cursor-pointer px-3 py-2 text-sm ${index === sugestaoAtiva ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+                          className={`cursor-pointer px-3 py-2 text-sm ${index === sugestaoAtiva ? 'bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                           onMouseDown={() => aplicarSugestao(sugestao)}
                         >
                           {sugestao}
@@ -492,10 +492,10 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
               </div>
 
               {filtrosAbertos && (
-                <div className="grid gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 md:grid-cols-4">
+                <div className="grid gap-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-950/50 p-4 md:grid-cols-4">
                   {data?.filtrosSugeridos?.grupos?.length ? (
                     <div>
-                      <label className="mb-2 block text-sm text-slate-300">Grupo</label>
+                      <label className="mb-2 block text-sm text-slate-700 dark:text-slate-300">Grupo</label>
                       <Select value={codigoGrupo} onChange={(event) => setCodigoGrupo(event.target.value)}>
                         <option value="">Todos</option>
                         {data?.filtrosSugeridos?.grupos?.map((grupo) => (
@@ -506,7 +506,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                   ) : null}
                   {data?.filtrosSugeridos?.classes?.length ? (
                     <div>
-                      <label className="mb-2 block text-sm text-slate-300">Classe</label>
+                      <label className="mb-2 block text-sm text-slate-700 dark:text-slate-300">Classe</label>
                       <Select value={codigoClasse} onChange={(event) => setCodigoClasse(event.target.value)}>
                         <option value="">Todas</option>
                         {data?.filtrosSugeridos?.classes?.map((classe) => (
@@ -517,7 +517,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                   ) : null}
                   {data?.filtrosSugeridos?.pdms?.length ? (
                     <div>
-                      <label className="mb-2 block text-sm text-slate-300">PDM</label>
+                      <label className="mb-2 block text-sm text-slate-700 dark:text-slate-300">PDM</label>
                       <Select value={codigoPdm} onChange={(event) => setCodigoPdm(event.target.value)}>
                         <option value="">Todos</option>
                         {data?.filtrosSugeridos?.pdms?.map((pdm) => (
@@ -527,7 +527,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                     </div>
                   ) : null}
                   <div>
-                    <label className="mb-2 block text-sm text-slate-300">Margem de preferência</label>
+                    <label className="mb-2 block text-sm text-slate-700 dark:text-slate-300">Margem de preferência</label>
                     <Select value={aplicaMargem} onChange={(event) => setAplicaMargem(event.target.value)}>
                       <option value="">Todas</option>
                       <option value="true">Com margem</option>
@@ -548,7 +548,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
             </div>
           ) : error ? (
             <Card>
-              <CardContent className="pt-6 text-center text-slate-300">
+              <CardContent className="pt-6 text-center text-slate-700 dark:text-slate-300">
                 <p>{error}</p>
                 <Button type="button" variant="outline" className="mt-4" onClick={() => void carregarBusca(1)}>
                   Tentar novamente
@@ -558,7 +558,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
           ) : resultadosVisiveis.length ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-slate-400">Encontrados {data?.total ?? 0} resultados</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Encontrados {data?.total ?? 0} resultados</p>
                 <div className="flex flex-wrap gap-2">
                   {[
                     { key: 'todos', label: `Todos (${data?.total ?? 0})` },
@@ -570,7 +570,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                       key={chip.key}
                       type="button"
                       onClick={() => setFiltroFaixa(chip.key as 'todos' | 'exato' | 'alta' | 'similar')}
-                      className={`rounded-full border px-3 py-1 text-sm ${filtroFaixa === chip.key ? 'border-cyan-500 bg-cyan-600/20 text-cyan-300' : 'border-slate-700 bg-slate-900 text-slate-300'}`}
+                      className={`rounded-full border px-3 py-1 text-sm ${filtroFaixa === chip.key ? 'border-cyan-500 bg-cyan-100 dark:bg-cyan-600/20 text-cyan-700 dark:text-cyan-300' : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'}`}
                     >
                       {chip.label}
                     </button>
@@ -584,12 +584,12 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge>{item.codigoItem}</Badge>
-                        <span className="text-sm text-slate-400">{item.codigoGrupo} - {item.nomeGrupo}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">{item.codigoGrupo} - {item.nomeGrupo}</span>
                         <span className="text-sm text-slate-500">/</span>
-                        <span className="text-sm text-slate-400">{item.codigoClasse} - {item.nomeClasse}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">{item.codigoClasse} - {item.nomeClasse}</span>
                       </div>
-                      <p className="font-medium text-white">{item.descricaoItem}</p>
-                      <div className="flex flex-wrap gap-4 text-sm text-slate-400">
+                      <p className="font-medium text-slate-900 dark:text-white">{item.descricaoItem}</p>
+                      <div className="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
                         <span>PDM: {item.codigoPdm}</span>
                         <span>NCM: {item.codigoNcm || '-'}</span>
                         {item.aplicaMargemPreferencia && <Badge variant="secondary">Margem preferência</Badge>}
@@ -601,7 +601,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                           {item.compatibilidade}% · {item.faixa === 'exato' ? 'Resultado exato' : item.faixa === 'alta' ? 'Alta similaridade' : 'Similar'}
                         </Badge>
                       )}
-                      <Link href={`/material/${item.codigoItem}`} className="inline-flex items-center rounded-md border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:border-cyan-500 hover:text-cyan-300">
+                      <Link href={`/material/${item.codigoItem}`} className="inline-flex items-center rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 transition hover:border-cyan-500 hover:text-cyan-700 dark:hover:text-cyan-300">
                         Ver detalhes →
                       </Link>
                       <Button variant="outline" size="sm" onClick={() => adicionarItemGrade(item)}>
@@ -621,7 +621,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                 <Button variant="outline" disabled={pagina <= 1} onClick={() => void carregarBusca(pagina - 1)}>
                   Anterior
                 </Button>
-                <span className="text-sm text-slate-400">Página {data?.pagina ?? 1} de {data?.totalPaginas ?? 1}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">Página {data?.pagina ?? 1} de {data?.totalPaginas ?? 1}</span>
                 <Button variant="outline" disabled={(data?.pagina ?? 1) >= (data?.totalPaginas ?? 1)} onClick={() => void carregarBusca((data?.pagina ?? 1) + 1)}>
                   Próxima
                 </Button>
@@ -629,16 +629,16 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
             </>
           ) : !data ? (
             <Card>
-              <CardContent className="pt-6 text-center text-slate-400">
+              <CardContent className="pt-6 text-center text-slate-600 dark:text-slate-400">
                 <p>Digite um termo acima para pesquisar no catálogo CATMAT — por descrição, grupo, classe ou PDM.</p>
               </CardContent>
             </Card>
           ) : (
             <Card>
-              <CardContent className="pt-6 text-center text-slate-400">
+              <CardContent className="pt-6 text-center text-slate-600 dark:text-slate-400">
                 <p>Nenhum resultado encontrado para o termo informado.</p>
                 {termo.trim() && sugestoes[0] && (
-                  <p className="mt-3 text-sm text-cyan-300">
+                  <p className="mt-3 text-sm text-cyan-700 dark:text-cyan-300">
                     Você quis dizer{' '}
                     <button type="button" className="font-semibold underline" onClick={() => aplicarSugestao(sugestoes[0])}>
                       {sugestoes[0]}
@@ -659,12 +659,12 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
             <CardDescription>Itens adicionados para posterior escolha de unidade e preço.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-lg border border-dashed border-slate-700 p-4 text-sm text-slate-400">
+            <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-4 text-sm text-slate-600 dark:text-slate-400">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-medium text-white">{resumoGrade} {resumoGrade === 1 ? 'item' : 'itens'} na grade</p>
+                  <p className="font-medium text-slate-900 dark:text-white">{resumoGrade} {resumoGrade === 1 ? 'item' : 'itens'} na grade</p>
                   {resumoGrade > 0 && (
-                    <p className="mt-1 text-base font-semibold text-cyan-300">
+                    <p className="mt-1 text-base font-semibold text-cyan-700 dark:text-cyan-300">
                       Total estimado: {formatarMoeda(totalCotacao)}
                     </p>
                   )}
@@ -683,7 +683,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                     variant={confirmandoLimpeza ? 'default' : 'ghost'}
                     size="sm"
                     onClick={limparGradeAtiva}
-                    className={confirmandoLimpeza ? 'bg-rose-600 text-white hover:bg-rose-500' : ''}
+                    className={confirmandoLimpeza ? 'bg-rose-600 text-slate-900 dark:text-white hover:bg-rose-500' : ''}
                   >
                     <Eraser className="mr-2 h-4 w-4" />
                     {confirmandoLimpeza ? 'Confirmar?' : 'Limpar'}
@@ -693,8 +693,8 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
               <p className="mt-2">A seleção fica salva no navegador e pode ser organizada por grade.</p>
             </div>
 
-            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-400">
-              <label className="block text-sm text-slate-300">Grade ativa</label>
+            <div className="space-y-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-950/50 p-4 text-sm text-slate-600 dark:text-slate-400">
+              <label className="block text-sm text-slate-700 dark:text-slate-300">Grade ativa</label>
               <Select value={gradeAtiva} onChange={(event) => {
                 const nome = event.target.value
                 setGradeAtiva(nome)
@@ -714,14 +714,14 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
               )}
             </div>
 
-            <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-400">
+            <div className="space-y-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-950/50 p-4 text-sm text-slate-600 dark:text-slate-400">
               {gradeItens.length ? gradeItens.map((item, index) => (
-                <div key={`${item.codigoItem}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
-                  <div className="font-medium text-white">{item.descricaoItem}</div>
+                <div key={`${item.codigoItem}-${index}`} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-3">
+                  <div className="font-medium text-slate-900 dark:text-white">{item.descricaoItem}</div>
                   <div className="mt-2 text-xs text-slate-500">CATMAT {item.codigoItem}</div>
                   {Array.isArray(item.unidades) && item.unidades.length > 0 && (
                     <>
-                      <label className="mt-2 block text-xs text-slate-400">Unidade de fornecimento</label>
+                      <label className="mt-2 block text-xs text-slate-600 dark:text-slate-400">Unidade de fornecimento</label>
                       <Select
                         value={item.unidade || ''}
                         onChange={(event) => void alterarUnidadeGrade(index, event.target.value)}
@@ -755,7 +755,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                     />
                   )}
                   <div className="mt-2 flex items-center gap-2">
-                    <label className="text-xs text-slate-400" htmlFor={`qtd-${item.codigoItem}-${index}`}>Qtd:</label>
+                    <label className="text-xs text-slate-600 dark:text-slate-400" htmlFor={`qtd-${item.codigoItem}-${index}`}>Qtd:</label>
                     <Input
                       id={`qtd-${item.codigoItem}-${index}`}
                       type="number"
@@ -771,16 +771,16 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="ml-auto text-slate-500 hover:text-rose-400"
+                      className="ml-auto text-slate-500 hover:text-rose-600 dark:hover:text-rose-400"
                       onClick={() => removerItemGrade(index)}
                       aria-label="Remover item da grade"
                     >
                       Remover
                     </Button>
                   </div>
-                  <div className="mt-2 text-xs text-slate-400">
+                  <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                     Unitário: {formatarMoeda(calcularPrecoSelecionado(item))}
-                    <span className="font-medium text-white"> · Total: {formatarMoeda((typeof item.quantidade === 'number' && item.quantidade > 0 ? item.quantidade : 1) * calcularPrecoSelecionado(item))}</span>
+                    <span className="font-medium text-slate-900 dark:text-white"> · Total: {formatarMoeda((typeof item.quantidade === 'number' && item.quantidade > 0 ? item.quantidade : 1) * calcularPrecoSelecionado(item))}</span>
                     {typeof item.metricas?.amostras === 'number' && item.metricas.amostras > 0 && (
                       <span className="text-slate-500"> · {item.metricas.amostras} compras consideradas</span>
                     )}

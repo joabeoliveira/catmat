@@ -16,13 +16,14 @@ interface GraficoDispersaoPrecosProps {
   limiteSuperior?: number | null
 }
 
-// Paleta validada para superfície escura (dataviz: 6 checks OK):
-// compras #0891b2 (ciano) · outliers #b45309 (âmbar) + forma distinta (losango)
+// Paleta validada para superfícies clara E escura (dataviz: 6 checks OK nos dois modos):
+// compras #0891b2 (ciano) · outliers #b45309 (âmbar) + forma distinta (losango).
+// Superfície/grade/textos vêm de CSS vars definidas em globals.css por tema.
 const COR_COMPRA = '#0891b2'
 const COR_OUTLIER = '#b45309'
-const COR_SUPERFICIE = '#0f172a'
-const COR_GRADE = '#1e293b'
-const COR_TEXTO = '#64748b'
+const COR_SUPERFICIE = 'var(--grafico-superficie)'
+const COR_GRADE = 'var(--grafico-grade)'
+const COR_TEXTO = 'var(--grafico-texto)'
 
 const LARGURA = 720
 const ALTURA = 260
@@ -105,7 +106,7 @@ export function GraficoDispersaoPrecos({ pontos, mediana, limiteSuperior }: Graf
 
   return (
     <div className="relative">
-      <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-slate-300">
+      <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-slate-700 dark:text-slate-300">
         <span className="inline-flex items-center gap-2">
           <svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill={COR_COMPRA} /></svg>
           Compra considerada ({pontos.length - totalOutliers})
@@ -129,10 +130,10 @@ export function GraficoDispersaoPrecos({ pontos, mediana, limiteSuperior }: Graf
               x2={LARGURA - MARGEM.right}
               y1={layout.escalaY(tick)}
               y2={layout.escalaY(tick)}
-              stroke={COR_GRADE}
+              style={{ stroke: COR_GRADE }}
               strokeWidth="1"
             />
-            <text x={MARGEM.left - 8} y={layout.escalaY(tick) + 3.5} textAnchor="end" fontSize="11" fill={COR_TEXTO}>
+            <text x={MARGEM.left - 8} y={layout.escalaY(tick) + 3.5} textAnchor="end" fontSize="11" style={{ fill: COR_TEXTO }}>
               {formatarMoeda(tick)}
             </text>
           </g>
@@ -145,7 +146,7 @@ export function GraficoDispersaoPrecos({ pontos, mediana, limiteSuperior }: Graf
             y={ALTURA - 8}
             textAnchor="middle"
             fontSize="11"
-            fill={COR_TEXTO}
+            style={{ fill: COR_TEXTO }}
           >
             {formatarDataCurta(new Date(tempo).toISOString())}
           </text>
@@ -156,7 +157,7 @@ export function GraficoDispersaoPrecos({ pontos, mediana, limiteSuperior }: Graf
           x2={LARGURA - MARGEM.right}
           y1={yMediana}
           y2={yMediana}
-          stroke="#94a3b8"
+          style={{ stroke: 'var(--grafico-referencia)' }}
           strokeWidth="1"
         />
 
@@ -166,7 +167,7 @@ export function GraficoDispersaoPrecos({ pontos, mediana, limiteSuperior }: Graf
               <path
                 d={`M ${x} ${y} l 5.5 9 l -11 0 Z`}
                 fill={COR_OUTLIER}
-                stroke={COR_SUPERFICIE}
+                style={{ stroke: COR_SUPERFICIE }}
                 strokeWidth="2"
               />
             ) : ponto.outlier ? (
@@ -177,11 +178,11 @@ export function GraficoDispersaoPrecos({ pontos, mediana, limiteSuperior }: Graf
                 height="9"
                 transform={`rotate(45 ${x} ${y})`}
                 fill={COR_OUTLIER}
-                stroke={COR_SUPERFICIE}
+                style={{ stroke: COR_SUPERFICIE }}
                 strokeWidth="2"
               />
             ) : (
-              <circle cx={x} cy={y} r="4.5" fill={COR_COMPRA} stroke={COR_SUPERFICIE} strokeWidth="2" />
+              <circle cx={x} cy={y} r="4.5" fill={COR_COMPRA} style={{ stroke: COR_SUPERFICIE }} strokeWidth="2" />
             )}
             <circle
               cx={x}
@@ -204,8 +205,7 @@ export function GraficoDispersaoPrecos({ pontos, mediana, limiteSuperior }: Graf
           y={yMediana - 8}
           textAnchor="end"
           fontSize="11"
-          fill="#cbd5e1"
-          stroke={COR_SUPERFICIE}
+          style={{ fill: 'var(--grafico-rotulo)', stroke: COR_SUPERFICIE }}
           strokeWidth="4"
           paintOrder="stroke"
         >
@@ -215,15 +215,15 @@ export function GraficoDispersaoPrecos({ pontos, mediana, limiteSuperior }: Graf
 
       {ativo && (
         <div
-          className="pointer-events-none absolute z-10 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs shadow-xl"
+          className="pointer-events-none absolute z-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs shadow-xl"
           style={{
             left: `${(ativo.x / LARGURA) * 100}%`,
             top: `${(ativo.y / ALTURA) * 100}%`,
             transform: `translate(${ativo.x > LARGURA * 0.7 ? '-105%' : '10px'}, -110%)`,
           }}
         >
-          <div className="text-sm font-semibold text-white">{formatarMoeda(ativo.ponto.preco)}</div>
-          <div className="mt-0.5 text-slate-400">
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">{formatarMoeda(ativo.ponto.preco)}</div>
+          <div className="mt-0.5 text-slate-600 dark:text-slate-400">
             {formatarDataLonga(ativo.ponto.data)}
             {ativo.ponto.unidade ? ` · ${ativo.ponto.unidade}` : ''}
           </div>

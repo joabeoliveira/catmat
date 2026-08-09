@@ -31,8 +31,8 @@ export function FavoritoButton({ item, comTexto = false }: FavoritoButtonProps) 
       aria-label={favorito ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
       className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-2 text-sm transition ${
         favorito
-          ? 'border-rose-500/50 bg-rose-500/10 text-rose-400'
-          : 'border-slate-700 text-slate-400 hover:border-rose-500/50 hover:text-rose-400'
+          ? 'border-rose-500/50 bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'
+          : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-rose-500/50 hover:text-rose-600 dark:hover:text-rose-400'
       }`}
     >
       <Heart className="h-4 w-4" fill={favorito ? 'currentColor' : 'none'} />

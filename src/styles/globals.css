@@ -56,4 +56,20 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Tokens do gráfico de dispersão (tema claro/escuro) */
+  :root {
+    --grafico-superficie: #ffffff;
+    --grafico-grade: #e2e8f0;
+    --grafico-texto: #64748b;
+    --grafico-referencia: #64748b;
+    --grafico-rotulo: #334155;
+  }
+  .dark {
+    --grafico-superficie: #0f172a;
+    --grafico-grade: #1e293b;
+    --grafico-texto: #64748b;
+    --grafico-referencia: #94a3b8;
+    --grafico-rotulo: #cbd5e1;
+  }
 }

@@ -32,8 +32,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${inter.className} bg-slate-950`}>
+    <html lang="pt-BR" className="dark" suppressHydrationWarning>
+      <head>
+        {/* Aplica o tema salvo antes da primeira pintura (evita flash) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('catmat:tema')==='light'){document.documentElement.classList.remove('dark')}}catch(e){}`,
+          }}
+        />
+      </head>
+      <body className={`${inter.className} bg-slate-50 dark:bg-slate-950`}>
         <SiteHeader />
         {children}
         <SiteFooter />

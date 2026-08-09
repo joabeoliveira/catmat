@@ -7,10 +7,10 @@ export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElemen
 export function Select({ className, children, ...props }: SelectProps) {
   return (
     <div className="relative">
-      <select className={cn('flex h-10 w-full appearance-none rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30', className)} {...props}>
+      <select className={cn('flex h-10 w-full appearance-none rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 shadow-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30', className)} {...props}>
         {children}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 dark:text-slate-400" />
     </div>
   )
 }
@@ -20,7 +20,7 @@ export function SelectTrigger(props: React.HTMLAttributes<HTMLDivElement>) {
 }
 
 export function SelectValue({ placeholder }: { placeholder?: string }) {
-  return <span className="text-sm text-slate-400">{placeholder}</span>
+  return <span className="text-sm text-slate-600 dark:text-slate-400">{placeholder}</span>
 }
 
 export function SelectContent({ children }: { children: React.ReactNode }) {
