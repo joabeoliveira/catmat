@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Check, Copy, Download, Filter, Search } from 'lucide-react'
+import { Check, Copy, Download, Eraser, Filter, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,15 @@ import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FavoritoButton } from '@/components/shared/FavoritoButton'
 import { useBuscaItens, type BuscaItem } from '@/hooks/useBuscaItens'
+import {
+  lerGrades,
+  salvarItens,
+  limparGrade as limparGradeStorage,
+  criarGrade as criarGradeStorage,
+  renomearGrade as renomearGradeStorage,
+  excluirGrade as excluirGradeStorage,
+  type GradeRegistro,
+} from '@/lib/grades'
 
 const badgeClasses = {
   exato: 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40',
@@ -33,6 +42,7 @@ interface GradeUnidade {
 type GradeItem = Record<string, unknown> & {
   codigoItem: number
   descricaoItem: string
+  quantidade?: number
   criterioPreco?: string
   precoPersonalizado?: number | null
   precoUnitario?: number | null
@@ -54,9 +64,10 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   const [pagina, setPagina] = useState(1)
   const [gradeItens, setGradeItens] = useState<GradeItem[]>([])
-  const [gradeNome, setGradeNome] = useState('principal')
   const [grades, setGrades] = useState<string[]>(['principal'])
   const [gradeAtiva, setGradeAtiva] = useState('principal')
+  const [gradeMeta, setGradeMeta] = useState<{ criadaEm: string; atualizadaEm: string } | null>(null)
+  const [confirmandoLimpeza, setConfirmandoLimpeza] = useState(false)
   const [novoNomeGrade, setNovoNomeGrade] = useState('')
   const [copiadoCodigo, setCopiadoCodigo] = useState<number | null>(null)
   const [sugestoes, setSugestoes] = useState<string[]>([])
@@ -163,12 +174,18 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     }
   }, [termo])
 
+  const aplicarGrades = (todas: Record<string, GradeRegistro>, nomeAtivo: string) => {
+    const registro = todas[nomeAtivo]
+    setGrades(Object.keys(todas))
+    setGradeItens((registro?.itens ?? []) as GradeItem[])
+    setGradeMeta(registro ? { criadaEm: registro.criadaEm, atualizadaEm: registro.atualizadaEm } : null)
+  }
+
   const adicionarItemGrade = async (item: BuscaItem) => {
     if (typeof window === 'undefined') return
 
-    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
-    const gradeSelecionada = Array.isArray(storage[gradeAtiva]) ? storage[gradeAtiva] : []
-    const existe = gradeSelecionada.some((i: GradeItem) => i.codigoItem === item.codigoItem)
+    const gradeSelecionada = (lerGrades()[gradeAtiva]?.itens ?? []) as GradeItem[]
+    const existe = gradeSelecionada.some((i) => i.codigoItem === item.codigoItem)
 
     if (existe) return
 
@@ -198,6 +215,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     const media = typeof metricas?.media === 'number' ? metricas.media : null
     const novoItem: GradeItem = {
       ...item,
+      quantidade: 1,
       unidade: unidadeEscolhida,
       unidades,
       precoReferencia: media,
@@ -212,10 +230,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     }
 
     const novaGrade = [...gradeSelecionada, novoItem]
-    storage[gradeAtiva] = novaGrade
-    localStorage.setItem('catmat:grades', JSON.stringify(storage))
-    setGradeItens(novaGrade)
-    window.dispatchEvent(new Event('gradeAtualizada'))
+    aplicarGrades(salvarItens(gradeAtiva, novaGrade), gradeAtiva)
   }
 
   const copiarCodigo = async (codigo: number) => {
@@ -229,6 +244,13 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   }
 
   const resumoGrade = useMemo(() => gradeItens.length, [gradeItens])
+
+  const formatarDataCurta = (iso: string | null | undefined) => {
+    if (!iso) return null
+    const data = new Date(iso)
+    if (Number.isNaN(data.getTime())) return null
+    return data.toLocaleDateString('pt-BR')
+  }
 
   const formatarMoeda = (valor: number | null | undefined) => {
     if (typeof valor !== 'number' || Number.isNaN(valor)) return '—'
@@ -246,6 +268,15 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     const base = typeof metricas[criterio] === 'number' ? metricas[criterio] : metricas.media
     return typeof base === 'number' ? Number(base.toFixed(2)) : 0
   }
+
+  const totalCotacao = useMemo(
+    () => gradeItens.reduce((total, item) => {
+      const quantidade = typeof item.quantidade === 'number' && item.quantidade > 0 ? item.quantidade : 1
+      return total + quantidade * calcularPrecoSelecionado(item)
+    }, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [gradeItens],
+  )
 
   const alterarUnidadeGrade = async (index: number, sigla: string) => {
     const item = gradeItens[index]
@@ -272,86 +303,78 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
   const atualizarItemGrade = (index: number, atualizacao: Partial<GradeItem>) => {
     if (typeof window === 'undefined') return
     const proxGrade = gradeItens.map((item, itemIndex) => itemIndex === index ? { ...item, ...atualizacao } : item)
-    setGradeItens(proxGrade)
-    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
-    storage[gradeAtiva] = proxGrade
-    localStorage.setItem('catmat:grades', JSON.stringify(storage))
-    window.dispatchEvent(new Event('gradeAtualizada'))
+    aplicarGrades(salvarItens(gradeAtiva, proxGrade), gradeAtiva)
+  }
+
+  const removerItemGrade = (index: number) => {
+    if (typeof window === 'undefined') return
+    const proxGrade = gradeItens.filter((_, itemIndex) => itemIndex !== index)
+    aplicarGrades(salvarItens(gradeAtiva, proxGrade), gradeAtiva)
+  }
+
+  const limparGradeAtiva = () => {
+    if (typeof window === 'undefined') return
+    if (!confirmandoLimpeza) {
+      setConfirmandoLimpeza(true)
+      window.setTimeout(() => setConfirmandoLimpeza(false), 4000)
+      return
+    }
+    setConfirmandoLimpeza(false)
+    aplicarGrades(limparGradeStorage(gradeAtiva), gradeAtiva)
   }
 
   const criarGrade = () => {
     if (typeof window === 'undefined') return
     const nome = novoNomeGrade.trim() || `grade-${Date.now()}`
-    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
-    if (!storage[nome]) storage[nome] = []
-    const nomes = Object.keys(storage)
-    setGrades(nomes)
+    const todas = criarGradeStorage(nome)
     setGradeAtiva(nome)
-    setGradeNome(nome)
-    setGradeItens(storage[nome])
     setNovoNomeGrade('')
-    localStorage.setItem('catmat:grades', JSON.stringify(storage))
+    aplicarGrades(todas, nome)
   }
 
   const renomearGrade = () => {
     if (typeof window === 'undefined' || gradeAtiva === 'principal') return
     const nome = novoNomeGrade.trim()
     if (!nome || nome === gradeAtiva) return
-    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
-    if (storage[nome]) return
-    storage[nome] = storage[gradeAtiva] || []
-    delete storage[gradeAtiva]
-    setGrades(Object.keys(storage))
+    const todas = renomearGradeStorage(gradeAtiva, nome)
+    if (!todas[nome]) return
     setGradeAtiva(nome)
-    setGradeNome(nome)
-    setGradeItens(storage[nome])
     setNovoNomeGrade('')
-    localStorage.setItem('catmat:grades', JSON.stringify(storage))
-    window.dispatchEvent(new Event('gradeAtualizada'))
+    aplicarGrades(todas, nome)
   }
 
   const removerGrade = () => {
     if (typeof window === 'undefined' || gradeAtiva === 'principal') return
-    const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
-    delete storage[gradeAtiva]
-    const nomes = Object.keys(storage)
-    const proxima = nomes[0] || 'principal'
-    setGrades(nomes)
+    const todas = excluirGradeStorage(gradeAtiva)
+    const proxima = Object.keys(todas)[0] || 'principal'
     setGradeAtiva(proxima)
-    setGradeNome(proxima)
-    setGradeItens(Array.isArray(storage[proxima]) ? storage[proxima] : [])
-    localStorage.setItem('catmat:grades', JSON.stringify(storage))
-    window.dispatchEvent(new Event('gradeAtualizada'))
+    aplicarGrades(todas, proxima)
   }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const gradeAtual = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
-    const nomes = Object.keys(gradeAtual).length ? Object.keys(gradeAtual) : ['principal']
-    if (!gradeAtual.principal) gradeAtual.principal = []
-    if (!gradeAtual[gradeAtiva] && gradeAtual.principal) {
-      gradeAtual[gradeAtiva] = []
-    }
-    setGrades(nomes)
-    setGradeItens(Array.isArray(gradeAtual[gradeAtiva]) ? gradeAtual[gradeAtiva] : [])
-    localStorage.setItem('catmat:grades', JSON.stringify(gradeAtual))
+    aplicarGrades(lerGrades(), gradeAtiva)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const exportarCsv = () => {
     if (!gradeItens.length) return
 
     const linhas = [
-      ['codigoItem', 'descricaoItem', 'unidade', 'criterioPreco', 'precoUnitario', 'quantidadeCompras', 'periodoInicio', 'periodoFim', 'fonte'],
+      ['codigoItem', 'descricaoItem', 'unidade', 'quantidade', 'criterioPreco', 'precoUnitario', 'valorTotalItem', 'quantidadeCompras', 'periodoInicio', 'periodoFim', 'fonte'],
       ...gradeItens.map((item) => {
         const criterio = item.criterioPreco || 'media'
         const valorSelecionado = calcularPrecoSelecionado(item)
         const valor = criterio === 'personalizado' && typeof item.precoPersonalizado === 'number' ? item.precoPersonalizado : valorSelecionado
+        const quantidade = typeof item.quantidade === 'number' && item.quantidade > 0 ? item.quantidade : 1
         return [
           String(item.codigoItem || ''),
           String(item.descricaoItem || ''),
           String(item.unidade || ''),
+          String(quantidade),
           criterio,
           String(valor ?? ''),
+          String(Number((quantidade * (valor || 0)).toFixed(2))),
           String(item.quantidadeCompras ?? ''),
           String(item.periodoInicio || ''),
           String(item.periodoFim || ''),
@@ -364,8 +387,9 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
+    const dataArquivo = new Date().toISOString().slice(0, 10)
     link.href = url
-    link.download = 'grade-catmat.csv'
+    link.download = `grade-${gradeAtiva}-${dataArquivo}.csv`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -636,7 +660,36 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-lg border border-dashed border-slate-700 p-4 text-sm text-slate-400">
-              <p className="font-medium text-white">{resumoGrade} itens na grade</p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-white">{resumoGrade} {resumoGrade === 1 ? 'item' : 'itens'} na grade</p>
+                  {resumoGrade > 0 && (
+                    <p className="mt-1 text-base font-semibold text-cyan-300">
+                      Total estimado: {formatarMoeda(totalCotacao)}
+                    </p>
+                  )}
+                  {gradeMeta && resumoGrade > 0 && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Iniciada em {formatarDataCurta(gradeMeta.criadaEm)}
+                      {formatarDataCurta(gradeMeta.atualizadaEm) !== formatarDataCurta(gradeMeta.criadaEm)
+                        ? ` · atualizada em ${formatarDataCurta(gradeMeta.atualizadaEm)}`
+                        : ''}
+                    </p>
+                  )}
+                </div>
+                {resumoGrade > 0 && (
+                  <Button
+                    type="button"
+                    variant={confirmandoLimpeza ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={limparGradeAtiva}
+                    className={confirmandoLimpeza ? 'bg-rose-600 text-white hover:bg-rose-500' : ''}
+                  >
+                    <Eraser className="mr-2 h-4 w-4" />
+                    {confirmandoLimpeza ? 'Confirmar?' : 'Limpar'}
+                  </Button>
+                )}
+              </div>
               <p className="mt-2">A seleção fica salva no navegador e pode ser organizada por grade.</p>
             </div>
 
@@ -644,10 +697,8 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
               <label className="block text-sm text-slate-300">Grade ativa</label>
               <Select value={gradeAtiva} onChange={(event) => {
                 const nome = event.target.value
-                const storage = JSON.parse(localStorage.getItem('catmat:grades') || '{}')
                 setGradeAtiva(nome)
-                setGradeNome(nome)
-                setGradeItens(Array.isArray(storage[nome]) ? storage[nome] : [])
+                aplicarGrades(lerGrades(), nome)
               }}>
                 {grades.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
               </Select>
@@ -703,8 +754,33 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                       onChange={(event) => atualizarItemGrade(index, { precoPersonalizado: Number(event.target.value) || 0 })}
                     />
                   )}
+                  <div className="mt-2 flex items-center gap-2">
+                    <label className="text-xs text-slate-400" htmlFor={`qtd-${item.codigoItem}-${index}`}>Qtd:</label>
+                    <Input
+                      id={`qtd-${item.codigoItem}-${index}`}
+                      type="number"
+                      min={1}
+                      className="h-8 w-24"
+                      value={item.quantidade ?? 1}
+                      onChange={(event) => {
+                        const quantidade = Math.max(1, Math.trunc(Number(event.target.value) || 1))
+                        atualizarItemGrade(index, { quantidade })
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto text-slate-500 hover:text-rose-400"
+                      onClick={() => removerItemGrade(index)}
+                      aria-label="Remover item da grade"
+                    >
+                      Remover
+                    </Button>
+                  </div>
                   <div className="mt-2 text-xs text-slate-400">
-                    Preço: {formatarMoeda(calcularPrecoSelecionado(item))}
+                    Unitário: {formatarMoeda(calcularPrecoSelecionado(item))}
+                    <span className="font-medium text-white"> · Total: {formatarMoeda((typeof item.quantidade === 'number' && item.quantidade > 0 ? item.quantidade : 1) * calcularPrecoSelecionado(item))}</span>
                     {typeof item.metricas?.amostras === 'number' && item.metricas.amostras > 0 && (
                       <span className="text-slate-500"> · {item.metricas.amostras} compras consideradas</span>
                     )}
