@@ -9,7 +9,7 @@ export function SiteHeader() {
         <Link href="/" className="flex items-baseline gap-2">
           <span className="text-lg font-semibold text-slate-900 dark:text-white">Consulta<span className="text-cyan-600 dark:text-cyan-400">CATMAT</span></span>
         </Link>
-        <nav aria-label="Menu principal" className="flex items-center gap-1 sm:gap-2">
+        <nav aria-label="Menu principal" data-tour="navegacao" className="flex items-center gap-1 sm:gap-2">
           <Link href="/" className="rounded-md px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white">
             Busca
           </Link>

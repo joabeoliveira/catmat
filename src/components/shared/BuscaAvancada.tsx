@@ -465,7 +465,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col gap-3 md:flex-row">
-                <div className="relative flex-1">
+                <div className="relative flex-1" data-tour="busca">
                   <Input
                     aria-label="Buscar no catálogo CATMAT"
                     placeholder="Ex: papel couche, notebook, software"
@@ -502,7 +502,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
                   <Search className="mr-2 h-4 w-4" />
                   {isLoading ? 'Buscando...' : 'Buscar'}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setFiltrosAbertos((value) => !value)}>
+                <Button type="button" variant="outline" data-tour="filtros" onClick={() => setFiltrosAbertos((value) => !value)}>
                   <Filter className="mr-2 h-4 w-4" />
                   Filtros
                 </Button>
@@ -577,7 +577,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-3">
                   <p className="text-sm text-slate-600 dark:text-slate-400">Encontrados {data?.total ?? 0} resultados</p>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1" data-tour="refinar">
                     <Input
                       aria-label="Refinar resultados com palavras do descritivo"
                       placeholder="Refinar: ex. preta, 500mg…"
@@ -719,7 +719,7 @@ export function BuscaAvancada({ initialResults }: BuscaAvancadaProps) {
         </div>
       </div>
 
-      <aside className="space-y-4">
+      <aside className="space-y-4" data-tour="grade">
         <Card>
           <CardHeader>
             <CardTitle>Grade de seleção</CardTitle>

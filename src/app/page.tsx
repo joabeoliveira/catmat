@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { BuscaAvancada } from '@/components/shared/BuscaAvancada'
+import { TourGuiado } from '@/components/shared/TourGuiado'
 import { CatmatService } from '@/features/catmar/catmat.service'
 import { getSiteUrl } from '@/lib/site-config'
 
@@ -67,6 +68,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
         <BuscaAvancada initialResults={initialResults} />
       </div>
+      <TourGuiado />
     </main>
   )
 }
