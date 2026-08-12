@@ -16,6 +16,9 @@ export function SiteHeader() {
           <Link href="/grupos" className="rounded-md px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white">
             Grupos
           </Link>
+          <Link href="/nfe" className="rounded-md px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white">
+            NF-e
+          </Link>
           <FavoritosLink />
           <ThemeToggle />
         </nav>
