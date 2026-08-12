@@ -163,8 +163,15 @@ export function DanfeViewer({ dados }: DanfeViewerProps) {
           </div>
         </div>
 
-        <div className="mt-2 border-t border-black pt-1 text-center text-[9px] text-gray-700">
+        <div className="mt-2 border-t border-black pt-1 text-center text-[9px] leading-tight text-gray-700">
           Consulta NF-e - Dados obtidos no Portal da Transparencia do Governo Federal pela chave de acesso.
+          Para realizar a consulta completa e oficial, acesse
+          {" "}
+          <span className="font-mono">
+            https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=resumo&amp;tipoConteudo=7PhJ+gAVw2g=
+          </span>
+          {" "}
+          e informe a chave de acesso no campo indicado.
         </div>
       </div>
     </div>
