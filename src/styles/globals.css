@@ -73,3 +73,50 @@
     --grafico-rotulo: #cbd5e1;
   }
 }
+
+@media print {
+  @page {
+    margin: 12mm;
+    size: A4;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  body > header,
+  body > footer {
+    display: none !important;
+  }
+
+  main {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .danfe-print-root {
+    display: block !important;
+    margin: 0 !important;
+  }
+
+  .danfe-document {
+    box-shadow: none !important;
+    page-break-inside: auto;
+  }
+
+  .danfe-document table {
+    page-break-inside: auto;
+  }
+
+  .danfe-document thead {
+    display: table-header-group;
+  }
+
+  .danfe-document tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+}

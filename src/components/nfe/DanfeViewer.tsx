@@ -13,7 +13,7 @@ export function DanfeViewer({ dados }: DanfeViewerProps) {
   const { notaFiscalDTO, itensNotaFiscal } = dados;
 
   return (
-    <div className="space-y-4">
+    <div className="danfe-print-root space-y-4">
       <div className="flex justify-between items-center print:hidden">
         <h2 className="text-xl font-bold">Nota Fiscal Eletrônica</h2>
         <Button onClick={() => window.print()} className="flex items-center gap-2">
@@ -23,7 +23,7 @@ export function DanfeViewer({ dados }: DanfeViewerProps) {
       </div>
 
       {/* DANFE Container */}
-      <div className="border border-black p-4 bg-white text-black text-xs font-sans print:border-none print:p-0">
+      <div className="danfe-document border border-black p-4 bg-white text-black text-xs font-sans print:border-none print:p-0">
         <div className="text-center font-bold text-sm bg-gray-100 border-b border-black py-1 mb-2">
           DANFE - Documento Auxiliar da Nota Fiscal Eletrônica
         </div>
@@ -80,7 +80,7 @@ export function DanfeViewer({ dados }: DanfeViewerProps) {
           </thead>
           <tbody>
             {itensNotaFiscal.map((item) => (
-              <tr key={item.numeroProduto} className="border-b border-black text-[11px]">
+              <tr key={item.numeroProduto} className="break-inside-avoid border-b border-black text-[11px]">
                 <td className="border border-black p-1 text-center">{item.numeroProduto}</td>
                 <td className="border border-black p-1">
                   <strong>{item.descricaoProdutoServico}</strong>
@@ -106,6 +106,10 @@ export function DanfeViewer({ dados }: DanfeViewerProps) {
             <span className="block font-bold text-[10px]">VALOR TOTAL DA NF-e</span>
             <span className="text-base font-bold">R$ {notaFiscalDTO.valorNotaFiscal}</span>
           </div>
+        </div>
+
+        <div className="mt-3 border-t border-black pt-2 text-center text-[10px] text-gray-700">
+          Consulta NF-e - Dados obtidos no Portal da Transparência do Governo Federal pela chave de acesso.
         </div>
       </div>
     </div>

@@ -46,7 +46,7 @@ export function NFeSearch() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="print:hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileSearch className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
