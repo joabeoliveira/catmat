@@ -81,6 +81,20 @@ const headerMap = {
   'VALOR TOTAL': 'valor_total',
 }
 
+const normalizedHeaderMap = Object.fromEntries(
+  Object.entries(headerMap).map(([header, column]) => [normalizeHeader(header), column]),
+)
+
+function normalizeHeader(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\uFFFD/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+}
+
 function parseCsvLine(line) {
   const values = []
   let current = ''
@@ -108,7 +122,11 @@ function parseCsvLine(line) {
 }
 
 function emptyToNull(value) {
-  const text = String(value ?? '').trim()
+  const text = String(value ?? '')
+    .replace(/\uFEFF/g, '')
+    .replace(/\uFFFD/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
   return text ? text : null
 }
 
@@ -130,11 +148,11 @@ function parseDateBr(value) {
 }
 
 function normalizeRow(headers, values, sourceFile) {
-  const row = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']))
+  const row = Object.fromEntries(headers.map((header, index) => [normalizedHeaderMap[normalizeHeader(header)] || header, values[index] ?? '']))
   const mapped = {}
 
-  for (const [csvHeader, dbColumn] of Object.entries(headerMap)) {
-    mapped[dbColumn] = emptyToNull(row[csvHeader])
+  for (const dbColumn of Object.values(headerMap)) {
+    mapped[dbColumn] = emptyToNull(row[dbColumn])
   }
 
   mapped.data_emissao = parseDateBr(mapped.data_emissao)
@@ -192,6 +210,7 @@ async function insertBatch(batch) {
 async function main() {
   const inputPath = process.argv[2] || defaultFile
   const batchSize = Number(process.env.NFE_IMPORT_BATCH_SIZE || 1000)
+  const encoding = process.env.NFE_IMPORT_ENCODING || 'latin1'
 
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL nao esta definida.')
@@ -202,7 +221,7 @@ async function main() {
 
   await ensureSchema()
 
-  const stream = fs.createReadStream(inputPath, { encoding: 'latin1' })
+  const stream = fs.createReadStream(inputPath, { encoding })
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity })
 
   let headers = null

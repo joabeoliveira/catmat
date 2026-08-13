@@ -35,3 +35,8 @@ npm run import:nfe -- /app/dados-importacao/202608_NFe_NotaFiscalItem.csv
 ```
 
 O script cria a tabela e os índices de busca quando necessário, importa em lotes e atualiza registros repetidos pela combinação `chave_acesso + numero_produto`.
+Por padrão, o CSV é lido como `latin1`, formato comum nos arquivos públicos de NF-e. Se algum arquivo vier em outro encoding, ajuste antes do comando:
+
+```bash
+NFE_IMPORT_ENCODING=utf8 npm run import:nfe -- /app/dados-importacao/arquivo.csv
+```
