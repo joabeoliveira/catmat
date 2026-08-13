@@ -57,6 +57,13 @@ const headerMap = {
   'Seq. Compra Item': 'seq_compra_item',
 }
 
+const columnCasts = {
+  data_homologacao: 'date',
+  valor_item_compra: 'numeric',
+  quantidade_item_compra: 'numeric',
+  valor_total_compra: 'numeric',
+}
+
 const normalizedHeaderMap = Object.fromEntries(
   Object.entries(headerMap).map(([header, column]) => [normalizeHeader(header), column]),
 )
@@ -166,7 +173,8 @@ async function insertBatch(batch) {
   const tuples = batch.map((row, rowIndex) => {
     const placeholders = columns.map((column, columnIndex) => {
       values.push(row[column] ?? null)
-      return `$${rowIndex * columns.length + columnIndex + 1}`
+      const placeholder = `$${rowIndex * columns.length + columnIndex + 1}`
+      return columnCasts[column] ? `${placeholder}::${columnCasts[column]}` : placeholder
     })
     return `(${placeholders.join(', ')})`
   })
