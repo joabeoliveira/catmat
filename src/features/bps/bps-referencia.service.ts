@@ -147,6 +147,15 @@ async function facet(whereSql: string, params: unknown[], column: string) {
   return rows.map((row) => ({ valor: row.valor || '', quantidade: asCount(row.quantidade) }))
 }
 
+async function safeFacet(whereSql: string, params: unknown[], column: string) {
+  try {
+    return await facet(whereSql, params, column)
+  } catch (error) {
+    console.warn(`Falha ao carregar filtro BPS ${column}:`, error)
+    return []
+  }
+}
+
 export class BpsReferenciaService {
   async buscar(params: BuscarBpsReferenciasParams) {
     const termo = params.termo.trim()
@@ -229,14 +238,12 @@ export class BpsReferenciaService {
     )
     const metricas = metricRows[0]
 
-    const [ufs, municipios, catmats, modalidades, fabricantes, fornecedores] = await Promise.all([
-      facet(whereSql, baseParams, 'uf'),
-      facet(whereSql, baseParams, 'nome_municipio'),
-      facet(whereSql, baseParams, 'codigo_catmat'),
-      facet(whereSql, baseParams, 'modalidade_compra'),
-      facet(whereSql, baseParams, 'fabricante'),
-      facet(whereSql, baseParams, 'fornecedor'),
-    ])
+    const ufs = await safeFacet(whereSql, baseParams, 'uf')
+    const municipios = await safeFacet(whereSql, baseParams, 'nome_municipio')
+    const catmats = await safeFacet(whereSql, baseParams, 'codigo_catmat')
+    const modalidades = await safeFacet(whereSql, baseParams, 'modalidade_compra')
+    const fabricantes = await safeFacet(whereSql, baseParams, 'fabricante')
+    const fornecedores = await safeFacet(whereSql, baseParams, 'fornecedor')
 
     return {
       items: rows.map(toItem),
