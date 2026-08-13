@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileSearch, Filter, Loader2, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -75,6 +75,7 @@ function data(value: string | null | undefined) {
 
 export function NFeReferenciaSearch() {
   const [termo, setTermo] = useState('')
+  const [refinamento, setRefinamento] = useState('')
   const [pagina, setPagina] = useState(1)
   const [ufEmitente, setUfEmitente] = useState('')
   const [municipioEmitente, setMunicipioEmitente] = useState('')
@@ -93,14 +94,56 @@ export function NFeReferenciaSearch() {
   const [carregando, setCarregando] = useState(false)
   const [danfe, setDanfe] = useState<NFeResposta | null>(null)
   const [danfeCarregando, setDanfeCarregando] = useState<string | null>(null)
+  const [sugestoes, setSugestoes] = useState<string[]>([])
+  const [sugestaoAtiva, setSugestaoAtiva] = useState(-1)
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false)
+  const digitouRef = useRef(false)
+  const debounceRef = useRef<number | null>(null)
+  const sugestoesAbortRef = useRef<AbortController | null>(null)
 
   const temFiltros = useMemo(
     () => Boolean(ufEmitente || municipioEmitente || ufDestinatario || ncm || cfop || fornecedor || destinatario || dataInicio || dataFim || valorMin || valorMax),
     [cfop, dataFim, dataInicio, destinatario, fornecedor, municipioEmitente, ncm, ufDestinatario, ufEmitente, valorMax, valorMin],
   )
 
-  async function buscar(nextPagina = 1) {
+  useEffect(() => {
     const q = termo.trim()
+    if (q.length < 2) {
+      setSugestoes([])
+      setMostrarSugestoes(false)
+      return
+    }
+
+    if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    const controller = new AbortController()
+    sugestoesAbortRef.current?.abort()
+    sugestoesAbortRef.current = controller
+
+    debounceRef.current = window.setTimeout(() => {
+      void fetch(`/api/nfe/sugestoes?q=${encodeURIComponent(q)}`, { signal: controller.signal })
+        .then((response) => response.ok ? response.json() : [])
+        .then((payload) => {
+          if (!controller.signal.aborted) {
+            setSugestoes(Array.isArray(payload) ? payload : [])
+            setMostrarSugestoes(digitouRef.current)
+            setSugestaoAtiva(-1)
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setSugestoes([])
+            setMostrarSugestoes(false)
+          }
+        })
+    }, 150)
+
+    return () => controller.abort()
+  }, [termo])
+
+  async function buscar(nextPagina = 1, termoOverride?: string, refinamentoOverride?: string) {
+    const termoBase = termoOverride ?? termo
+    const refinoBase = refinamentoOverride ?? refinamento
+    const q = [termoBase, refinoBase].map((value) => value.trim()).filter(Boolean).join(' ')
     if (q.length < 2) {
       setErro('Digite pelo menos 2 caracteres para pesquisar.')
       return
@@ -171,6 +214,31 @@ export function NFeReferenciaSearch() {
     setValorMax('')
   }
 
+  function aplicarSugestao(sugestao: string) {
+    digitouRef.current = false
+    setTermo(sugestao)
+    setMostrarSugestoes(false)
+    setSugestaoAtiva(-1)
+    void buscar(1, sugestao)
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (!mostrarSugestoes || !sugestoes.length) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setSugestaoAtiva((value) => (value + 1) % sugestoes.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setSugestaoAtiva((value) => (value - 1 + sugestoes.length) % sugestoes.length)
+    } else if (event.key === 'Enter' && sugestaoAtiva >= 0) {
+      event.preventDefault()
+      aplicarSugestao(sugestoes[sugestaoAtiva])
+    } else if (event.key === 'Escape') {
+      setMostrarSugestoes(false)
+      setSugestaoAtiva(-1)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card className="print:hidden">
@@ -192,12 +260,39 @@ export function NFeReferenciaSearch() {
             }}
           >
             <div className="flex flex-col gap-3 md:flex-row">
-              <Input
-                aria-label="Buscar produtos ou serviços em NF-e"
-                placeholder="Ex: carimbo automático, pneu 265/70R17, armário aço"
-                value={termo}
-                onChange={(event) => setTermo(event.target.value)}
-              />
+              <div className="relative flex-1">
+                <Input
+                  aria-label="Buscar produtos ou serviços em NF-e"
+                  placeholder="Ex: carimbo automático, pneu 265/70R17, armário aço"
+                  value={termo}
+                  onChange={(event) => {
+                    digitouRef.current = true
+                    setTermo(event.target.value)
+                  }}
+                  onKeyDown={handleKeyDown}
+                  role="combobox"
+                  aria-expanded={mostrarSugestoes && !!sugestoes.length}
+                  aria-controls="sugestoes-nfe"
+                  aria-autocomplete="list"
+                  aria-activedescendant={sugestaoAtiva >= 0 ? `sugestao-nfe-${sugestaoAtiva}` : undefined}
+                />
+                {mostrarSugestoes && sugestoes.length > 0 ? (
+                  <ul id="sugestoes-nfe" role="listbox" className="absolute z-20 mt-1 w-full rounded-lg border border-slate-300 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                    {sugestoes.map((sugestao, index) => (
+                      <li
+                        key={`${sugestao}-${index}`}
+                        id={`sugestao-nfe-${index}`}
+                        role="option"
+                        aria-selected={index === sugestaoAtiva}
+                        className={`cursor-pointer px-3 py-2 text-sm ${index === sugestaoAtiva ? 'bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-white' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                        onMouseDown={() => aplicarSugestao(sugestao)}
+                      >
+                        {sugestao}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
               <Button type="submit" disabled={carregando} className="md:w-40">
                 {carregando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                 Buscar
@@ -303,6 +398,40 @@ export function NFeReferenciaSearch() {
 
       {resultado ? (
         <div className="space-y-4 print:hidden">
+          <Card>
+            <CardContent className="flex flex-col gap-3 pt-4 md:flex-row md:items-center">
+              <div className="flex-1">
+                <Input
+                  aria-label="Refinar referências de NF-e"
+                  placeholder="Refinar resultados: ex. preto, 30ml, metal"
+                  value={refinamento}
+                  onChange={(event) => setRefinamento(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void buscar(1)
+                    }
+                  }}
+                />
+              </div>
+              <Button type="button" variant="outline" onClick={() => void buscar(1)}>
+                Refinar
+              </Button>
+              {refinamento.trim() ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setRefinamento('')
+                    void buscar(1, undefined, '')
+                  }}
+                >
+                  Limpar
+                </Button>
+              ) : null}
+            </CardContent>
+          </Card>
+
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-slate-600 dark:text-slate-400">
               {resultado.total.toLocaleString('pt-BR')} referências encontradas
