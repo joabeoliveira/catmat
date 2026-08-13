@@ -167,10 +167,12 @@ async function ensureSchema() {
 }
 
 async function insertBatch(batch) {
-  if (!batch.length) return
+  if (!batch.length) return 0
+
+  const deduped = [...new Map(batch.map((row) => [row.seq_compra_item, row])).values()]
 
   const values = []
-  const tuples = batch.map((row, rowIndex) => {
+  const tuples = deduped.map((row, rowIndex) => {
     const placeholders = columns.map((column, columnIndex) => {
       values.push(row[column] ?? null)
       const placeholder = `$${rowIndex * columns.length + columnIndex + 1}`
@@ -192,6 +194,7 @@ async function insertBatch(batch) {
   `
 
   await prisma.$executeRawUnsafe(sql, ...values)
+  return deduped.length
 }
 
 async function main() {
@@ -235,8 +238,7 @@ async function main() {
 
     batch.push(row)
     if (batch.length >= batchSize) {
-      await insertBatch(batch)
-      imported += batch.length
+      imported += await insertBatch(batch)
       batch = []
       if (imported % (batchSize * 10) === 0) {
         console.log(`Importados ${imported} registros BPS...`)
@@ -245,8 +247,7 @@ async function main() {
   }
 
   if (batch.length) {
-    await insertBatch(batch)
-    imported += batch.length
+    imported += await insertBatch(batch)
   }
 
   const seconds = ((Date.now() - startedAt) / 1000).toFixed(1)
