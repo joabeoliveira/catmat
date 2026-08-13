@@ -40,3 +40,18 @@ Por padrão, o CSV é lido como `latin1`, formato comum nos arquivos públicos d
 ```bash
 NFE_IMPORT_ENCODING=utf8 npm run import:nfe -- /app/dados-importacao/arquivo.csv
 ```
+
+## Carga da base BPS
+
+Com o arquivo `bps.CSV` disponível no mount de importação, execute no terminal do container da aplicação:
+
+```bash
+npm run import:bps -- /app/dados-importacao/bps.CSV
+```
+
+O script cria a tabela `bps_itens_referencia`, configura índices de busca textual e atualiza registros repetidos pelo campo `Seq. Compra Item`.
+Por padrão, o CSV é lido como `latin1`. Se necessário, ajuste:
+
+```bash
+BPS_IMPORT_ENCODING=utf8 npm run import:bps -- /app/dados-importacao/bps.CSV
+```
