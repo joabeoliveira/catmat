@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { CatserPrecosResponse } from '@/features/catser/catser.types'
 
 interface Props {
@@ -20,6 +21,17 @@ function formatarData(iso: string | null | undefined) {
 
 export function CatserPrecosTable({ data }: Props) {
   const { metricas } = data
+  const [expandidos, setExpandidos] = useState<Record<number, boolean>>({})
+
+  function alternarObjeto(index: number) {
+    setExpandidos((prev) => ({ ...prev, [index]: !prev[index] }))
+  }
+
+  function resumir(texto: string | null | undefined, maximo: number) {
+    if (!texto) return ''
+    return texto.length > maximo ? `${texto.slice(0, maximo).trimEnd()}…` : texto
+  }
+
   const cards = [
     { label: 'Compras', valor: String(metricas.quantidade ?? 0) },
     { label: 'Menor preço', valor: formatarMoeda(metricas.menor) },
@@ -50,11 +62,13 @@ export function CatserPrecosTable({ data }: Props) {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="bg-slate-100 text-xs uppercase text-slate-600 dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="px-3 py-2">Data compra</th>
+                <th className="px-3 py-2">Órgão (UASG)</th>
                 <th className="px-3 py-2">Fornecedor</th>
+                <th className="px-3 py-2">Objeto</th>
                 <th className="px-3 py-2">Preço unitário</th>
                 <th className="px-3 py-2">Qtd</th>
                 <th className="px-3 py-2">Unidade</th>
@@ -63,21 +77,58 @@ export function CatserPrecosTable({ data }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {data.itens.map((item, index) => (
-                <tr key={`${item.idCompra}-${index}`} className="bg-white dark:bg-slate-950/40">
-                  <td className="px-3 py-2">{formatarData(item.dataCompra)}</td>
-                  <td className="px-3 py-2">{item.nomeFornecedor || '—'}</td>
-                  <td className="px-3 py-2 font-medium text-emerald-700 dark:text-emerald-300">
-                    {formatarMoeda(item.precoUnitario)}
-                  </td>
-                  <td className="px-3 py-2">{item.quantidade ?? '—'}</td>
-                  <td className="px-3 py-2">{item.siglaUnidadeMedida || item.nomeUnidadeMedida || '—'}</td>
-                  <td className="px-3 py-2">
-                    {item.municipio ? `${item.municipio}${item.estado ? `/${item.estado}` : ''}` : item.estado || '—'}
-                  </td>
-                  <td className="px-3 py-2">{item.poder || '—'}</td>
-                </tr>
-              ))}
+              {data.itens.map((item, index) => {
+                const objeto = item.objetoCompra || item.descricaoItem || ''
+                const expandido = !!expandidos[index]
+                const objetoResumo = resumir(objeto, 90)
+                return (
+                  <tr key={`${item.idCompra}-${index}`} className="bg-white dark:bg-slate-950/40">
+                    <td className="whitespace-nowrap px-3 py-2">{formatarData(item.dataCompra)}</td>
+                    <td className="max-w-[220px] px-3 py-2">
+                      <div className="truncate" title={item.nomeUasg || ''}>
+                        {item.nomeUasg || '—'}
+                      </div>
+                      {item.codigoUasg ? (
+                        <div className="text-xs text-slate-500">UASG {item.codigoUasg}</div>
+                      ) : null}
+                    </td>
+                    <td className="max-w-[180px] px-3 py-2">
+                      <div className="truncate" title={item.nomeFornecedor || ''}>
+                        {item.nomeFornecedor || '—'}
+                      </div>
+                    </td>
+                    <td className="max-w-[280px] px-3 py-2">
+                      {objeto ? (
+                        <div>
+                          <div>{expandido ? objeto : objetoResumo}</div>
+                          {objeto.length > 90 ? (
+                            <button
+                              type="button"
+                              onClick={() => alternarObjeto(index)}
+                              className="mt-1 text-xs font-medium text-cyan-600 hover:underline dark:text-cyan-400"
+                            >
+                              {expandido ? 'Mostrar menos' : 'Ler mais'}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 font-medium text-emerald-700 dark:text-emerald-300">
+                      {formatarMoeda(item.precoUnitario)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">{item.quantidade ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      {[item.siglaUnidadeMedida, item.nomeUnidadeMedida].filter(Boolean).join(' · ') || '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {item.municipio ? `${item.municipio}${item.estado ? `/${item.estado}` : ''}` : item.estado || '—'}
+                    </td>
+                    <td className="px-3 py-2">{item.poder || '—'}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
