@@ -160,3 +160,89 @@ npm run dev
 - [ ] Fase 4 — Integração Skills 4 e 5
 - [ ] Validação final e testes
 - [ ] Commit e push das alterações
+
+---
+
+## 10. 🛠️ Fase 3 — Frontend (detalhado)
+
+Objetivo: oferecer uma interface simples e reutilizável para pesquisar serviços e visualizar preços, seguindo os padrões já usados para CATMAT.
+
+- [ ] Criar página principal de CATSER: `src/app/catser/page.tsx` (layout similar a BPS/CATMAT).
+- [ ] Componentes principais:
+  - `CatserSearch.tsx`: input com sugestões (consume `/api/catser/sugestoes`).
+  - `CatserResults.tsx`: lista/página com paginação e filtros (usa `/api/catser?q=`).
+  - `CatserPrecosTable.tsx`: tabela com métricas (média/mediana/menor/maior) e botão "Consultar histórico" que chama `/api/catser/[codigoServico]/precos`.
+  - `CatserFiltros.tsx`: filtros por `uf`, `codigoUasg`, `dataInicio`/`dataFim`, `poder`, `esfera`.
+- [ ] Integração com componente compartilhado `BuscaAvancada` para oferecer alternância CATMAT/CATSER.
+- [ ] Testes básicos de UI: smoke test para renderizar página e chamadas mock das APIs.
+- [ ] Acessibilidade e responsividade (mesmas regras do projeto).
+
+Notas de implementação:
+- Reutilizar estilos e UI primitives em `src/components/ui/`.
+- Priorizar renderização server-side para conteúdos estáticos (onde aplicável) e chamadas dinâmica por cliente para métricas pesadas.
+
+## 11. 🗄️ Fase 4 — Esquema de preços e integração (decisão técnica)
+
+Recomendação (Opção A — mais explícita e segura):
+
+- Criar `CompraServicoItem` (nova tabela) que replica os campos relevantes da API `3_consultarServico` e tem FK opcional para `CatserItem` (campo `codigoServico` → `CatserItem.codigoServico`).
+- Criar `ServicoPrecoResumo` (semelhante a `PrecoResumo`) para indicar se existe histórico e guardar contadores/periodos.
+
+Exemplo resumido de Prisma (sugestão):
+
+```prisma
+model CompraServicoItem {
+  id            String   @id @default(cuid())
+  codigoServico Int?
+  precoUnitario Float?
+  nomeFornecedor String?
+  nomeUasg      String?
+  municipio     String?
+  estado        String?
+  dataCompra    DateTime?
+  // ... outros campos conforme 3_consultarServico
+  catserItem    CatserItem? @relation(fields: [codigoServico], references: [codigoServico])
+  @@index([codigoServico])
+  @@index([dataCompra])
+}
+
+model ServicoPrecoResumo {
+  codigoServico    Int @id
+  quantidadeCompras Int
+  periodoInicio     DateTime?
+  periodoFim        DateTime?
+  atualizadoEm      DateTime @default(now()) @updatedAt
+}
+```
+
+Motivos: mantém histórico separado (não conflita com `CompraItem` e Catmat), facilita consultas agregadas e limpeza/espurgo posterior.
+
+## 12. 🚀 Execução e deployment (passo a passo imediato)
+
+1. (Feito) Commit + push backend (serviço e rotas) e `scripts/import-catser.mjs` — já enviado para `main`.
+2. Production deploy via EasyPanel (você executa). Após deploy concluído:
+   - Rodar `npm run db:catser-setup` (aplica `004_catser_referencia.sql`) se ainda não aplicado no DB de produção.
+   - Rodar `npm run import:catser /caminho/para/catser.csv` para popular `CatserItem`.
+3. Criar e disponibilizar a página frontend `src/app/catser/page.tsx` (segue Fase 3) e commitar para acionar novo deploy.
+4. Se necessário, rodar job de import periódico (ver seção GitHub Actions abaixo).
+
+## 13. ⚙️ GitHub Actions / Jobs sugeridos
+
+- `catser-import.yml` (opcional): workflow acionado manualmente (`workflow_dispatch`) que executa `npm run import:catser` usando `DATABASE_URL` do Secrets. Útil para re-imports e backfill.
+- `post-deploy-setup.yml` (opcional): job que executa `psql "$DATABASE_URL" -f prisma/sql/004_catser_referencia.sql` automaticamente após deploy se desejar automatizar setup do banco (cuidado com permissões).
+
+## 14. ✅ Checklist de PR/Deploy
+
+- [ ] Testes unitários do serviço (`catser.service`) passam (mocks do Prisma).
+- [ ] Testes E2E mínimos na página de busca CATSER (quando implementada).
+- [ ] Migração/SQL verificada em staging antes da produção.
+- [ ] Backup do banco antes de rodar import em produção.
+- [ ] Monitor de erros/telemetria ativo após deploy.
+
+## 15. Próximas ações que eu posso executar agora
+
+- Criar a página `src/app/catser/page.tsx` e os componentes básicos e abrir PR (posso fazer e pushar). 
+- Gerar o workflow GitHub Action para import manual em produção.
+- Implementar o schema `CompraServicoItem` + `ServicoPrecoResumo` no `prisma/schema.prisma` e abrir PR para revisar a migração.
+
+Diga qual dessas ações devo priorizar e eu executo o próximo passo.
