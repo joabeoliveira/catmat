@@ -1,7 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Check, Copy, ExternalLink } from 'lucide-react'
 import type { CatserPrecosResponse } from '@/features/catser/catser.types'
+
+const URL_PNCP = 'https://pncp.gov.br/app/compras'
 
 interface Props {
   data: CatserPrecosResponse
@@ -22,9 +25,20 @@ function formatarData(iso: string | null | undefined) {
 export function CatserPrecosTable({ data }: Props) {
   const { metricas } = data
   const [expandidos, setExpandidos] = useState<Record<number, boolean>>({})
+  const [copiadoId, setCopiadoId] = useState<string | null>(null)
 
   function alternarObjeto(index: number) {
     setExpandidos((prev) => ({ ...prev, [index]: !prev[index] }))
+  }
+
+  async function copiarId(idCompra: string) {
+    try {
+      await navigator.clipboard.writeText(idCompra)
+      setCopiadoId(idCompra)
+      window.setTimeout(() => setCopiadoId(null), 1200)
+    } catch {
+      // noop
+    }
   }
 
   function resumir(texto: string | null | undefined, maximo: number) {
@@ -66,6 +80,7 @@ export function CatserPrecosTable({ data }: Props) {
             <thead className="bg-slate-100 text-xs uppercase text-slate-600 dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="px-3 py-2">Data compra</th>
+                <th className="px-3 py-2">ID Compra</th>
                 <th className="px-3 py-2">Órgão (UASG)</th>
                 <th className="px-3 py-2">Fornecedor</th>
                 <th className="px-3 py-2">Objeto</th>
@@ -84,6 +99,34 @@ export function CatserPrecosTable({ data }: Props) {
                 return (
                   <tr key={`${item.idCompra}-${index}`} className="bg-white dark:bg-slate-950/40">
                     <td className="whitespace-nowrap px-3 py-2">{formatarData(item.dataCompra)}</td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {item.idCompra ? (
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono text-xs">{item.idCompra}</span>
+                          <button
+                            type="button"
+                            onClick={() => void copiarId(item.idCompra!)}
+                            title="Copiar ID da compra"
+                            aria-label="Copiar ID da compra"
+                            className="rounded p-1 text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400"
+                          >
+                            {copiadoId === item.idCompra ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          </button>
+                          <a
+                            href={`${URL_PNCP}?busca=${encodeURIComponent(item.idCompra)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Ver no PNCP (Compras.gov.br)"
+                            aria-label="Ver compra no PNCP"
+                            className="rounded p-1 text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td className="max-w-[220px] px-3 py-2">
                       <div className="truncate" title={item.nomeUasg || ''}>
                         {item.nomeUasg || '—'}

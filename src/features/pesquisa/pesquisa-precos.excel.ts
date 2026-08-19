@@ -36,6 +36,7 @@ export interface DadosPesquisaPrecos {
 const PODER_NOMES: Record<string, string> = { E: 'Executivo', L: 'Legislativo', J: 'Judiciário' }
 const ESFERA_NOMES: Record<string, string> = { F: 'Federal', E: 'Estadual', M: 'Municipal' }
 const FONTE = 'Compras.gov.br — Módulo Pesquisa de Preço (dados abertos)'
+const URL_PNCP = 'https://pncp.gov.br/app/compras'
 
 function formatarMoeda(valor: number | null | undefined): string {
   if (typeof valor !== 'number' || Number.isNaN(valor)) return '—'
@@ -93,9 +94,11 @@ export function gerarPlanilhaPesquisaPrecos(params: DadosPesquisaPrecos): Buffer
 
   // ---------- Planilha 2: Preços pesquisados ----------
   const precosRows: (string | number)[][] = [
-    ['Data compra', 'Órgão (UASG)', 'Cód. UASG', 'Fornecedor', 'Objeto', 'Preço unitário (R$)', 'Quantidade', 'Unidade', 'Município/UF', 'Poder', 'Esfera', 'Fonte'],
+    ['Data compra', 'ID Compra', 'Link PNCP', 'Órgão (UASG)', 'Cód. UASG', 'Fornecedor', 'Objeto', 'Preço unitário (R$)', 'Quantidade', 'Unidade', 'Município/UF', 'Poder', 'Esfera', 'Fonte'],
     ...data.itens.map((item) => [
       formatarData(item.dataCompra),
+      item.idCompra || '—',
+      item.idCompra ? `${URL_PNCP}?busca=${encodeURIComponent(item.idCompra)}` : '—',
       item.nomeUasg || '—',
       item.codigoUasg || '—',
       item.nomeFornecedor || '—',
@@ -112,6 +115,8 @@ export function gerarPlanilhaPesquisaPrecos(params: DadosPesquisaPrecos): Buffer
   const precosWs = XLSX.utils.aoa_to_sheet(precosRows)
   precosWs['!cols'] = [
     { wch: 12 },
+    { wch: 22 },
+    { wch: 55 },
     { wch: 40 },
     { wch: 10 },
     { wch: 35 },
@@ -125,9 +130,9 @@ export function gerarPlanilhaPesquisaPrecos(params: DadosPesquisaPrecos): Buffer
     { wch: 45 },
   ]
   for (let r = 1; r < precosRows.length; r += 1) {
-    const preco = precosWs[XLSX.utils.encode_cell({ r, c: 5 })]
+    const preco = precosWs[XLSX.utils.encode_cell({ r, c: 7 })]
     if (preco && typeof preco.v === 'number') preco.z = 'R$ #,##0.00'
-    const qtd = precosWs[XLSX.utils.encode_cell({ r, c: 6 })]
+    const qtd = precosWs[XLSX.utils.encode_cell({ r, c: 8 })]
     if (qtd && typeof qtd.v === 'number') qtd.z = '#,##0.00'
   }
   XLSX.utils.book_append_sheet(wb, precosWs, 'Preços')
