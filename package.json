@@ -9,6 +9,7 @@
     "seed:csv": "node ./scripts/seed-from-csv.mjs",
     "import:nfe": "node ./scripts/import-nfe-items.mjs",
     "import:bps": "node ./scripts/import-bps-items.mjs",
+    "import:catser": "node ./scripts/import-catser.mjs",
     "db:search-setup": "psql \"$DATABASE_URL\" -f prisma/sql/001_fts_trgm.sql",
     "db:nfe-setup": "psql \"$DATABASE_URL\" -f prisma/sql/002_nfe_referencia.sql",
     "db:bps-setup": "psql \"$DATABASE_URL\" -f prisma/sql/003_bps_referencia.sql",
