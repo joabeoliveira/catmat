@@ -306,3 +306,97 @@ Build de produção; migration SQL fiel ao plano (wrapper `immutable_unaccent`, 
 | Ressalvas menores | ⚠️ Não tratadas | Rate limit em precos/sugestões, `429` cacheável, fallback `[termo]`, renomear grade, estado inicial "Nenhum resultado" antes de qualquer busca — todas permanecem. |
 
 **Veredito da re-auditoria:** 5 de 6 bugs corrigidos (B5 inclusive, sem ter sido declarado — ponto positivo). Ficam pendentes: **B2** (segunda tentativa falhou — a alegação de correção não corresponde ao comportamento real), **P1** (crítico de processo) e as ressalvas menores. Build de produção OK.
+
+---
+
+## Terceira auditoria (Fable 5) — 08/08/2026, após segunda rodada de correções
+
+| Item | Status | Evidência |
+| --- | --- | --- |
+| B2 — "Você quis dizer" | ✅ **APROVADO** | Reteste em produção local: busca "papeis para" (0 resultados no mock, que é sensível a acentos) exibiu "Você quis dizer **Papéis para impressão**?" no estado vazio; o clique navegou para `/?q=Papéis+para+impressão` e retornou 2 resultados. Caso negativo OK: `sugestoes?q=dipirona` → `[]` e nenhuma mensagem exibida. |
+| P1 — versionamento | ✅ **RESOLVIDO (reavaliado em 08/08)** | ~~Recomendação anterior de apagar `appscatmat/.git`~~ **CANCELADA — não executar**: descobriu-se que o repo dentro de `appscatmat/` é o repositório **legítimo** do app (`github.com/joabeoliveira/catmat`, branch `main`, histórico com todos os commits das correções), conectado ao deploy do EasyPanel. Ele é o repo canônico do projeto; o repo pai (`e:\apps\catmat`) serve apenas para os documentos de planejamento e vê o app como gitlink — arranjo aceitável. A auditoria por diff deve ser feita **no repo interno** (`git -C appscatmat log/diff`). |
+
+**Estado consolidado das 3 auditorias:** todos os bugs funcionais (B1–B6) corrigidos e validados. Pendências restantes: (1) corrigir a forma do versionamento (gitlink → diretório normal, comando acima); (2) ressalvas menores da 1ª auditoria (rate limit em precos/sugestões, `429` sem cache, renomear grade, estado inicial de convite à busca, período de preços formatado); (3) **validação com banco real** — bloqueada até existir `appscatmat/.env` (ação do usuário): critérios 2–4 da Fase 1, critério 3 da Fase 4 e `EXPLAIN ANALYZE`.
+
+---
+
+## Validação da Fase 1 com banco real — 08/08/2026
+
+Banco de produção (EasyPanel, Postgres 17.10, database `evolution`) com **343.297 itens** indexados. Setup FTS/trigram já aplicado (extensões, `immutable_unaccent`, coluna `tsv`, índices GIN). Testes executados via API pública do deploy.
+
+**Critério 4 — índices em uso (evidência do usuário via psql):**
+
+```text
+Limit  (cost=30.10..65.76 rows=9 width=24) (actual time=1.862..1.866 rows=2 loops=1)
+  ->  Bitmap Heap Scan on "CatmatItem"
+        Recheck Cond: (tsv @@ '''dipiron'' & ''500mg'''::tsquery)
+        ->  Bitmap Index Scan on catmat_tsv_idx  (actual time=1.851..1.851 rows=2)
+Execution Time: 1.889 ms
+```
+
+✅ `Bitmap Index Scan on catmat_tsv_idx`, 1,9 ms em 343k linhas. **APROVADO.**
+
+**Critério 2 — acento-insensível:** `q=lampada` (sem acento) → 5.081 resultados, topo "LÂMPADA, NOME: LÂMPADA" (100% exato). **APROVADO.**
+
+**Critério 2b — ranking:** `q=dipirona 500mg` → 42 resultados; topo "DIPIRONA SÓDICA … 500MG…" (100% exato), faixas coerentes (1 exato / 4 alta). **APROVADO.**
+
+**Critério 3 — typo:** `q=dipirna` → 49 resultados via trigram (busca não quebra e acha medicamentos próximos), **porém** o topo é "DIPIRIDAMOL" rotulado "100% exato" — outro fármaco. **APROVADO COM RESSALVA (R1):** a normalização relativa do score faz o 1º resultado ser sempre "100% exato", mesmo quando o match é fraco. Refinamento recomendado: rotular "exato" apenas acima de um piso absoluto de score (ex.: `ts_rank`>0 com todos os tokens presentes, ou `similarity` ≥ 0,55); abaixo disso, exibir "alta"/"similar" mesmo para o topo. O site de referência exibe "Resultado exato" apenas para matches literais.
+
+**Observação de infraestrutura (não bloqueia):** o Postgres alerta `collation version mismatch (2.36 vs 2.41)` no database `evolution`. Recomendado em janela de manutenção: `ALTER DATABASE evolution REFRESH COLLATION VERSION;` e `REINDEX DATABASE evolution;` (risco maior é em índices B-tree de texto de outras aplicações que compartilham o banco — mais um motivo para migrar o CATMAT para um database próprio no futuro).
+
+**Pendência final para fechar o ciclo:** o deploy público roda **build antigo** (bug de sincronização de URL ainda presente; grade antiga). Redesploy com o código corrigido atual e reteste de fumaça na URL pública.
+
+---
+
+## Smoke test do deploy final (commit 6ca2a6f) — 08/08/2026
+
+Deploy do build correto confirmado por fingerprint (`robots.txt` → domínio EasyPanel).
+
+| Teste (URL pública) | Resultado |
+| --- | --- |
+| `robots.txt` com domínio configurável | ✅ `https://evolution-catmat.yg64ke.easypanel.host/sitemap.xml` |
+| SSR `/?q=dipirona 500mg` (título dinâmico + resultados no HTML servido) | ✅ |
+| Acento: `q=lampada` → LÂMPADA | ✅ 5.081 resultados |
+| Página de detalhe `/material/481225` (200, descrição, estatísticas) | ✅ |
+| Material inexistente → 404 | ✅ |
+| Autocomplete `/api/catmat/sugestoes` | ❌ **B7 — novo bug** |
+
+**B7 — Sugestões sempre caem no mock em produção.** `q=pap` devolve os itens literais do mock; `q=lamp`/`q=dipir` devolvem `[]` num banco com milhares de matches. Causa: em `api/catmat/sugestoes/route.ts`, a query `SELECT DISTINCT "nomePdm" … ORDER BY similarity(immutable_unaccent("nomePdm"), …) DESC` é **SQL inválido no PostgreSQL** ("for SELECT DISTINCT, ORDER BY expressions must appear in select list") — lança erro em toda chamada e o `catch` devolve o fallback silenciosamente. O bug era invisível nos testes locais porque sem banco o fallback é o caminho esperado. **Correção sugerida** (agrupar em vez de DISTINCT):
+
+```sql
+SELECT "nomePdm"
+FROM "CatmatItem"
+WHERE immutable_unaccent("nomePdm") ILIKE immutable_unaccent($q) || '%'
+   OR immutable_unaccent("nomePdm") % immutable_unaccent($q)
+GROUP BY "nomePdm"
+ORDER BY similarity(immutable_unaccent("nomePdm"), immutable_unaccent($q)) DESC
+LIMIT 8
+```
+
+Consequência enquanto não corrigir: autocomplete e "Você quis dizer" inoperantes em produção (só sugerem termos do mock). Impacta os critérios 2 e 4 da Fase 3 **em produção**.
+
+**Manutenção (não bloqueante):** `next@14.2.15` com vulnerabilidade conhecida (aviso do npm no build — atualizar para versão corrigida da linha 14.2.x); `ALTER DATABASE evolution REFRESH COLLATION VERSION` + `REINDEX` pendentes (aviso de collation 2.36→2.41).
+
+---
+
+## Encerramento da auditoria — 08/08/2026 (commits d9ee1eb + 3f93a3f, deploy validado)
+
+Correções finais aplicadas diretamente pelo auditor (autorizado pelo usuário), commitadas e validadas em produção.
+
+**Commit `d9ee1eb`:** B7 (sugestões: `GROUP BY` no lugar de `DISTINCT`; banco vazio não cai mais no mock); R1 (faixa "exato" exige match full-text real via `tsv @@ tsq`); rate limit compartilhado (`lib/rate-limit.ts`) em buscar/sugestões/preços; `429` com `no-store`; estado inicial de convite à busca; botão Renomear grade; datas pt-BR no detalhe; `next` 14.2.15 → 14.2.35.
+
+**Commit `3f93a3f` (B8 — regressão de performance encontrada em produção):** após o deploy do d9ee1eb, TODA busca estourava o timeout de 10s e caía no mock (sintoma reportado pelo usuário: sugestão "DIPIRONA SÓDICA" → "nenhum resultado"). Causa: trigram sobre `descricaoItem` em `OR` — rechecagem de similaridade em massa sobre textos longos. Correção: **busca em dois estágios** — full-text puro primeiro (indexado); trigram só quando FTS retorna zero (typo), restrito a `nomePdm`.
+
+**Validação final em produção (API + navegador):**
+
+| Teste | Antes (d9ee1eb) | Depois (3f93a3f) |
+| --- | --- | --- |
+| `q=DIPIRONA SÓDICA` | 10,5s → 0 resultados (mock) | **428ms → 75 resultados**, dipironas no topo |
+| `q=dipirona 500mg` | 10,2s → 0 | **167ms → topo "100% exato"** |
+| `q=dipirna` (typo) | 10,2s → 0 | **246ms → faixa "alta"** (nunca "exato") ✅ R1 |
+| `q=lampada` (acento) | timeout | **368ms → 5.081 LÂMPADAs** |
+| Sugestões `q=dipir` | mock/vazio (B7) | **~300ms → ["DIPIRIDAMOL","DIPIRONA SÓDICA"]** reais ✅ B7 |
+| Fluxo completo no navegador (digitar → selecionar sugestão → resultados) | quebrado | ✅ URL `/?q=DIPIRONA+SÓDICA`, 75 resultados, título dinâmico |
+| Estado inicial da home | "Nenhum resultado" | ✅ convite à busca |
+
+**Status geral: TODAS as fases do plano implementadas e validadas em produção.** Backlog remanescente (não bloqueante): manutenção do banco (`REFRESH COLLATION VERSION` + `REINDEX` em janela de baixo uso); migração futura do CATMAT para database separado da Evolution API; evolução do produto (comparar cobertura de resultados com catmat.com.br para termos amplos, ex. expor "ver mais similares" ativando o estágio trigram mesmo com resultados FTS).
