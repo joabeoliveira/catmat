@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronUp, Loader2, TrendingUp } from 'lucide-react'
+import { ChevronUp, TrendingUp } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CatserPrecosTable } from '@/components/catser/CatserPrecosTable'
-import type { CatserBuscaResponse, CatserPrecosResponse } from '@/features/catser/catser.types'
+import { CatserPrecosPanel } from '@/components/catser/CatserPrecosPanel'
+import type { CatserBuscaResponse } from '@/features/catser/catser.types'
 
 interface Props {
   data: CatserBuscaResponse | null
@@ -19,37 +19,10 @@ interface Props {
 }
 
 export function CatserResults({ data, isLoading, error, pagina, onPagina, onTentarNovamente }: Props) {
-  const [precosPorItem, setPrecosPorItem] = useState<Record<number, CatserPrecosResponse>>({})
-  const [carregandoPrecos, setCarregandoPrecos] = useState<number | null>(null)
-  const [erroPrecos, setErroPrecos] = useState<Record<number, string>>({})
+  const [precosAbertos, setPrecosAbertos] = useState<Record<number, boolean>>({})
 
-  async function consultarPrecos(codigoServico: number) {
-    if (precosPorItem[codigoServico]) {
-      const proximo = { ...precosPorItem }
-      delete proximo[codigoServico]
-      setPrecosPorItem(proximo)
-      return
-    }
-
-    setCarregandoPrecos(codigoServico)
-    setErroPrecos((prev) => {
-      const proximo = { ...prev }
-      delete proximo[codigoServico]
-      return proximo
-    })
-    try {
-      const resp = await fetch(`/api/catser/${codigoServico}/precos?tamanhoPagina=10`)
-      const payload = await resp.json()
-      if (!resp.ok) throw new Error(payload?.error || 'Falha ao consultar preços.')
-      setPrecosPorItem((prev) => ({ ...prev, [codigoServico]: payload }))
-    } catch (e) {
-      setErroPrecos((prev) => ({
-        ...prev,
-        [codigoServico]: e instanceof Error ? e.message : 'Falha ao consultar preços.',
-      }))
-    } finally {
-      setCarregandoPrecos(null)
-    }
+  function alternarPrecos(codigoServico: number) {
+    setPrecosAbertos((prev) => ({ ...prev, [codigoServico]: !prev[codigoServico] }))
   }
 
   if (isLoading) {
@@ -102,8 +75,7 @@ export function CatserResults({ data, isLoading, error, pagina, onPagina, onTent
       </p>
 
       {data.items.map((item) => {
-        const precoAberto = !!precosPorItem[item.codigoServico]
-        const dadosPreco = precosPorItem[item.codigoServico]
+        const precoAberto = !!precosAbertos[item.codigoServico]
         return (
           <Card key={item.codigoServico}>
             <CardContent className="flex flex-col gap-3 pt-6 md:flex-row md:items-start md:justify-between">
@@ -129,10 +101,8 @@ export function CatserResults({ data, isLoading, error, pagina, onPagina, onTent
                     {item.compatibilidade}% compatível
                   </Badge>
                 ) : null}
-                <Button variant="outline" size="sm" onClick={() => void consultarPrecos(item.codigoServico)}>
-                  {carregandoPrecos === item.codigoServico ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : precoAberto ? (
+                <Button variant="outline" size="sm" onClick={() => alternarPrecos(item.codigoServico)}>
+                  {precoAberto ? (
                     <ChevronUp className="mr-2 h-4 w-4" />
                   ) : (
                     <TrendingUp className="mr-2 h-4 w-4" />
@@ -142,15 +112,9 @@ export function CatserResults({ data, isLoading, error, pagina, onPagina, onTent
               </div>
             </CardContent>
 
-            {erroPrecos[item.codigoServico] ? (
-              <div className="px-6 pb-4 text-sm text-rose-600 dark:text-rose-400">
-                {erroPrecos[item.codigoServico]}
-              </div>
-            ) : null}
-
-            {dadosPreco ? (
+            {precoAberto ? (
               <div className="border-t border-slate-200 dark:border-slate-800">
-                <CatserPrecosTable data={dadosPreco} />
+                <CatserPrecosPanel codigoServico={item.codigoServico} />
               </div>
             ) : null}
           </Card>
