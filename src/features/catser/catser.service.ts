@@ -42,8 +42,15 @@ interface CountRow {
   total: bigint | number
 }
 
-interface FacetRow {
-  valor: string | null
+interface FacetGrupoRow {
+  codigo: number
+  nome: string
+  quantidade: bigint | number
+}
+
+interface FacetClasseRow {
+  codigo: string
+  nome: string
   quantidade: bigint | number
 }
 
@@ -181,22 +188,42 @@ function calcularMetricas(itens: PrecoServicoRaw[]) {
   }
 }
 
-async function safeFacet(whereSql: string, params: unknown[], column: string) {
+async function safeFacetGrupos(whereSql: string, params: unknown[]) {
   try {
-    const rows = await prisma.$queryRawUnsafe<FacetRow[]>(
+    const rows = await prisma.$queryRawUnsafe<FacetGrupoRow[]>(
       `
-        SELECT ${column} AS valor, count(*) AS quantidade
+        SELECT "codigoGrupo" AS codigo, max("nomeGrupo") AS nome, count(*) AS quantidade
         FROM "CatserItem"
-        WHERE ${whereSql} AND ${column} IS NOT NULL AND ${column} <> ''
-        GROUP BY ${column}
-        ORDER BY quantidade DESC, valor ASC
+        WHERE ${whereSql}
+        GROUP BY "codigoGrupo"
+        ORDER BY quantidade DESC, nome ASC
         LIMIT 20
       `,
       ...params,
     )
-    return rows.map((row) => ({ valor: row.valor || '', quantidade: asCount(row.quantidade) }))
+    return rows.map((row) => ({ codigo: row.codigo, nome: row.nome || '', quantidade: asCount(row.quantidade) }))
   } catch (error) {
-    console.warn(`Falha ao carregar filtro CATSER ${column}:`, error)
+    console.warn('Falha ao carregar filtro CATSER grupos:', error)
+    return []
+  }
+}
+
+async function safeFacetClasses(whereSql: string, params: unknown[]) {
+  try {
+    const rows = await prisma.$queryRawUnsafe<FacetClasseRow[]>(
+      `
+        SELECT "codigoClasse" AS codigo, max("nomeClasse") AS nome, count(*) AS quantidade
+        FROM "CatserItem"
+        WHERE ${whereSql}
+        GROUP BY "codigoClasse"
+        ORDER BY quantidade DESC, nome ASC
+        LIMIT 20
+      `,
+      ...params,
+    )
+    return rows.map((row) => ({ codigo: row.codigo, nome: row.nome || '', quantidade: asCount(row.quantidade) }))
+  } catch (error) {
+    console.warn('Falha ao carregar filtro CATSER classes:', error)
     return []
   }
 }
@@ -258,8 +285,8 @@ export class CatserService {
     )
     const total = asCount(countRows[0]?.total ?? 0)
 
-    const grupos = await safeFacet(whereSql, baseParams, '"nomeGrupo"')
-    const classes = await safeFacet(whereSql, baseParams, '"nomeClasse"')
+    const grupos = await safeFacetGrupos(whereSql, baseParams)
+    const classes = await safeFacetClasses(whereSql, baseParams)
 
     return {
       items: rows.map(toItem),
