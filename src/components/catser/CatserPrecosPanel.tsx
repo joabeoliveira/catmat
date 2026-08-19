@@ -28,6 +28,7 @@ interface Props {
 
 interface FiltrosAplicados {
   uf?: string
+  uasg?: string
   poder?: string
   esfera?: string
   dataInicio?: string
@@ -36,6 +37,7 @@ interface FiltrosAplicados {
 
 export function CatserPrecosPanel({ codigoServico }: Props) {
   const [uf, setUf] = useState('')
+  const [uasg, setUasg] = useState('')
   const [poder, setPoder] = useState('')
   const [esfera, setEsfera] = useState('')
   const [dataInicio, setDataInicio] = useState('')
@@ -47,6 +49,7 @@ export function CatserPrecosPanel({ codigoServico }: Props) {
   async function consultar(overrides?: FiltrosAplicados) {
     const flt: FiltrosAplicados = {
       uf: overrides?.uf ?? uf,
+      uasg: overrides?.uasg ?? uasg,
       poder: overrides?.poder ?? poder,
       esfera: overrides?.esfera ?? esfera,
       dataInicio: overrides?.dataInicio ?? dataInicio,
@@ -57,6 +60,7 @@ export function CatserPrecosPanel({ codigoServico }: Props) {
     setErro(null)
     const params = new URLSearchParams({ tamanhoPagina: '10' })
     if (flt.uf) params.set('uf', flt.uf)
+    if (flt.uasg) params.set('codigoUasg', flt.uasg)
     if (flt.poder) params.set('poder', flt.poder)
     if (flt.esfera) params.set('esfera', flt.esfera)
     if (flt.dataInicio) params.set('dataCompraInicio', flt.dataInicio)
@@ -82,11 +86,12 @@ export function CatserPrecosPanel({ codigoServico }: Props) {
 
   function limpar() {
     setUf('')
+    setUasg('')
     setPoder('')
     setEsfera('')
     setDataInicio('')
     setDataFim('')
-    void consultar({ uf: '', poder: '', esfera: '', dataInicio: '', dataFim: '' })
+    void consultar({ uf: '', uasg: '', poder: '', esfera: '', dataInicio: '', dataFim: '' })
   }
 
   return (
@@ -100,6 +105,18 @@ export function CatserPrecosPanel({ codigoServico }: Props) {
               <option key={sigla} value={sigla}>{sigla}</option>
             ))}
           </Select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-slate-500">UASG (órgão)</label>
+          <Input
+            aria-label="Código UASG"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="Ex: 200001"
+            value={uasg}
+            onChange={(event) => setUasg(event.target.value.replace(/\D/g, '').slice(0, 6))}
+            className="w-40"
+          />
         </div>
         <div>
           <label className="mb-1 block text-xs text-slate-500">Poder</label>
