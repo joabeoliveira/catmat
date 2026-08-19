@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__chrome-devtools__evaluate_script",
+      "mcp__chrome-devtools__press_key",
+      "mcp__chrome-devtools__navigate_page",
+      "PowerShell($deadline=\\(Get-Date\\).AddSeconds\\(30\\); do { Start-Sleep -Milliseconds 1000; $up = Test-NetConnection -ComputerName localhost -Port 3000 -InformationLevel Quiet -WarningAction SilentlyContinue } until \\($up -or \\(Get-Date\\) -gt $deadline\\); if\\($up\\){\"UP\"}else{\"DOWN\"}; \\(Invoke-WebRequest -Uri \"http://localhost:3000/api/catmat/sugestoes?q=papeis%20para\"\\).Content)",
+      "mcp__chrome-devtools__fill",
+      "mcp__chrome-devtools__wait_for",
+      "mcp__chrome-devtools__click",
+      "PowerShell(\\(Invoke-WebRequest -Uri \"http://localhost:3000/api/catmat/sugestoes?q=dipirona\"\\).Content)",
+      "mcp__chrome-devtools__take_snapshot",
+      "PowerShell(Set-Location e:\\\\apps\\\\catmat; \"=== remotes repo pai ===\"; git remote -v; \"=== remotes repo aninhado \\(appscatmat\\) ===\"; git -C appscatmat remote -v; \"=== log aninhado ===\"; git -C appscatmat log --oneline -5; \"=== status aninhado \\(resumo\\) ===\"; \\(git -C appscatmat status --short | Measure-Object -Line\\).Lines; git -C appscatmat status --short | Select-Object -First 10; \"=== branch aninhado ===\"; git -C appscatmat branch -a)",
+      "PowerShell(\"=== robots.txt do deploy ===\"; \\(Invoke-WebRequest -Uri \"https://evolution-catmat.yg64ke.easypanel.host/robots.txt\"\\).Content)",
+      "PowerShell(Set-Location e:\\\\apps\\\\catmat\\\\appscatmat; \\(Get-Content package.json | ConvertFrom-Json\\).dependencies.next; npm run build 2>&1 | Select-Object -Last 25)",
+      "WebFetch(domain:dadosabertos.compras.gov.br)",
+      "Bash(perl -i -pe 's/\\\\.replace\\\\\\(\\\\/\\\\[\\\\x{300}-\\\\x{36f}\\\\]\\\\/g, ..\"?.\\\\\\)/.replace\\(\\\\/[\\\\\\\\u0300-\\\\\\\\u036f]\\\\/g, \"\"\\)/ if /normalize/../toLowerCase/' src/app/material/\\\\[codigo\\\\]/page.tsx)",
+      "Bash(grep -n \"u0300\\\\|replace\\(/\\\\[\" \"src/app/material/[codigo]/page.tsx\")",
+      "Bash(python3 -)",
+      "PowerShell(Set-Location e:\\\\apps\\\\catmat\\\\appscatmat; $env:NODE_OPTIONS=\"--max_old_space_size=4096\"; npm run build 2>&1 | Select-Object -Last 5; $env:NODE_OPTIONS=$null)",
+      "PowerShell($deadline=\\(Get-Date\\).AddSeconds\\(40\\); do { Start-Sleep -Milliseconds 1500; $up = Test-NetConnection -ComputerName localhost -Port 3000 -InformationLevel Quiet -WarningAction SilentlyContinue } until \\($up -or \\(Get-Date\\) -gt $deadline\\); if\\($up\\){\"UP\"}else{\"DOWN\"})",
+      "mcp__chrome-devtools__take_screenshot",
+      "PowerShell(Remove-Item -Recurse -Force e:\\\\apps\\\\catmat\\\\appscatmat\\\\src\\\\app\\\\dev-grafico; Set-Location e:\\\\apps\\\\catmat\\\\appscatmat; $env:NODE_OPTIONS=\"--max_old_space_size=4096\"; npm run build 2>&1 | Select-Object -Last 4; $env:NODE_OPTIONS=$null)",
+      "PowerShell(Set-Location e:\\\\apps\\\\catmat\\\\appscatmat; $env:NODE_OPTIONS=\"--max_old_space_size=4096\"; npm run build 2>&1 | Select-Object -Last 16; $env:NODE_OPTIONS=$null)",
+      "PowerShell($deadline=\\(Get-Date\\).AddSeconds\\(30\\); do { Start-Sleep -Milliseconds 1000; $up = Test-NetConnection -ComputerName localhost -Port 3000 -InformationLevel Quiet -WarningAction SilentlyContinue } until \\($up -or \\(Get-Date\\) -gt $deadline\\); if\\($up\\){\"UP\"}else{\"DOWN\"})",
+      "PowerShell(Set-Location e:\\\\apps\\\\catmat\\\\appscatmat; $env:NODE_OPTIONS=\"--max_old_space_size=4096\"; npm run build 2>&1 | Select-Object -Last 4; $env:NODE_OPTIONS=$null)",
+      "PowerShell(Set-Location e:\\\\apps\\\\catmat\\\\appscatmat; $env:NODE_OPTIONS=\"--max_old_space_size=4096\"; npm run build 2>&1 | Select-Object -Last 6; $env:NODE_OPTIONS=$null)",
+      "mcp__chrome-devtools__list_console_messages"
+    ]
+  }
+}
