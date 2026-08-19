@@ -1,7 +1,8 @@
 # Plano de Implementação — Consulta e Pesquisa de Preços de Serviços (CATSER)
 
-> Status: **EM PLANEJAMENTO** · Última atualização: 2026-08-19
+> Status: **PARCIALMENTE IMPLEMENTADO** · Última atualização: 2026-08-19
 > Referência funcional: [`.skills/7_consulta_catser.md`](../.skills/7_consulta_catser.md)
+> Referência de padrões: [`docs/catser/REFERENCIA-IMPLEMENTACAO.md`](catser/REFERENCIA-IMPLEMENTACAO.md)
 
 ---
 
@@ -11,14 +12,14 @@ Implementar a funcionalidade de **consulta ao Catálogo de Serviços (CATSER)** 
 
 ### Funcionalidades previstas
 
-- [ ] Consulta por **descrição** do serviço (retornando os resultados mais próximos, como na busca por CATMAT).
-- [ ] Consulta por **código do serviço** (`codigoServico`).
-- [ ] Consulta por **grupo** ou **classe**.
-- [ ] Consulta por **status** do serviço.
-- [ ] Consulta por **preços praticados** (API do governo), com tabela comparativa:
+- [x] Consulta por **descrição** do serviço (retornando os resultados mais próximos, como na busca por CATMAT).
+- [x] Consulta por **código do serviço** (`codigoServico`).
+- [x] Consulta por **grupo** ou **classe**.
+- [x] Consulta por **status** do serviço.
+- [x] Consulta por **preços praticados** (API do governo), com tabela comparativa:
   - média, mediana, menor e maior preço;
-  - filtros por **data**, **UF** e **UASG** (e outros), conforme IN 65/2023;
-  - montagem de **grades de preços**.
+  - filtros por **UF**, **UASG**, **período**, **poder** e **esfera**;
+  - geração de **pesquisa de preços formal (IN 65/2021)** em Excel.
 
 ---
 
@@ -31,8 +32,10 @@ Implementar a funcionalidade de **consulta ao Catálogo de Serviços (CATSER)** 
 | Busca full-text CATMAT (`001_fts_trgm.sql` + coluna `tsv`) | ✅ Existe (referência de padrão) |
 | Busca BPS (`003_bps_referencia.sql` + `bps-referencia.service.ts`) | ✅ Existe (referência de padrão) |
 | API de preços para serviços (`3_consultarServico`) | ✅ Documentada na skill 7 |
-| Cache/persistência de preços de serviços | ❌ Não existe |
-| Rotas/UI de CATSER | ❌ Não existe |
+| Cache/persistência de preços de serviços | ❌ Não existe (pendente Opção A) |
+| Rotas/UI de CATSER | ✅ Implementado (página `/catser` + componentes) |
+| Link de auditoria PNCP (resolução oficial) | ✅ Implementado (resolver em cascata) |
+| Pesquisa de preços IN 65/2021 (Excel) | ✅ Implementado |
 
 ### Campos reais de `dados/catser.csv`
 
@@ -110,12 +113,25 @@ Implementar a funcionalidade de **consulta ao Catálogo de Serviços (CATSER)** 
 
 ## 5. 🖥️ Fase 3 — Frontend
 
-- [ ] Página `src/app/catser/page.tsx` (padrão da página BPS)
-- [ ] Componente `CatserSearch.tsx` — busca por descrição/código com sugestões
-- [ ] Componente `CatserPrecosTable.tsx` — tabela comparativa com média, mediana, menor, maior (IN 65/2023)
-- [ ] Componente `CatserFiltros.tsx` — filtros por data, UF, UASG, município
-- [ ] Componente de **grade de preços** (montagem e exportação)
-- [ ] Link no `SiteHeader.tsx`
+- [x] Página `src/app/catser/page.tsx`
+- [x] Componente `CatserSearch.tsx` — busca por descrição com autocomplete de sugestões (`/api/catser/sugestoes`)
+- [x] Componente `CatserResults.tsx` — lista com `nomeServico`, grupo/classe, % compatível e paginação
+- [x] Componente `CatserPrecosTable.tsx` — tabela com métricas (média, mediana, menor, maior), órgão (UASG), unidade, objeto com "Ler mais", ID da compra com copiar + link PNCP
+- [x] Componente `CatserFiltros.tsx` — filtros de busca por grupo/classe (a partir de `filtrosSugeridos`)
+- [x] Componente `CatserPrecosPanel.tsx` — filtros de preços por UF, UASG, poder, esfera, período + botão "Gerar pesquisa de preços (IN 65/2021)"
+- [x] Link no `SiteHeader.tsx` (CATMAT e CATSER no menu)
+
+> ✅ **Frontend implementado em 2026-08-19** (página + 6 componentes), build OK.
+
+### 5.1. Pesquisa de preços formal (IN 65/2021) — Excel
+
+- [x] Módulo `src/features/pesquisa/pesquisa-precos.excel.ts` (geração da planilha com 3 abas: Documento, Preços, Resumo/Metodologia)
+- [x] Rota `POST /api/catser/pesquisa/export` (gera `.xlsx` no servidor; dependência `xlsx`)
+- [x] Botão "Baixar Excel" no painel de preços (identificação: órgão, responsável, processo, observações)
+
+### 5.2. Link de auditoria no PNCP
+
+- [x] `src/lib/pncp.ts` — resolver em cascata (ver seção 16)
 
 ---
 
@@ -155,11 +171,11 @@ npm run dev
 ## 9. 🧭 Progresso
 
 - [x] Fase 1 — Carga no banco de dados *(parcial: schema + SQL 004; falta item 3.4 tabela de preços)*
-- [x] Fase 2 — Backend *(serviço + rotas criadas; pendente `npm install`/`prisma generate` e teste real)*
-- [ ] Fase 3 — Frontend
-- [ ] Fase 4 — Integração Skills 4 e 5
+- [x] Fase 2 — Backend *(serviço + rotas criadas e testadas)*
+- [x] Fase 3 — Frontend *(página + componentes + filtros + Excel + link PNCP)*
+- [ ] Fase 4 — Integração Skills 4 e 5 *(espurgo de outliers sobre preços de serviços)*
 - [ ] Validação final e testes
-- [ ] Commit e push das alterações
+- [x] Commit e push das alterações (deploy via EasyPanel)
 
 ---
 
@@ -240,10 +256,65 @@ Motivos: mantém histórico separado (não conflita com `CompraItem` e Catmat), 
 - [ ] Backup do banco antes de rodar import em produção.
 - [ ] Monitor de erros/telemetria ativo após deploy.
 
-## 15. Próximas ações que eu posso executar agora
+## 15. Próximas ações
 
-- Criar a página `src/app/catser/page.tsx` e os componentes básicos e abrir PR (posso fazer e pushar).
-- Gerar o workflow GitHub Action para import manual em produção.
-- Implementar o schema `CompraServicoItem` + `ServicoPrecoResumo` no `prisma/schema.prisma` e abrir PR para revisar a migração.
+- [ ] Implementar o schema `CompraServicoItem` + `ServicoPrecoResumo` (Opção A) no `prisma/schema.prisma` e abrir PR para revisar a migração (cache/persistência de preços de serviços).
+- [ ] Aplicar **espurgo de outliers** (Skill 5) sobre os preços de serviços.
+- [ ] Expor o `link_evidencia` na página de detalhe do material (`/material/[codigo]`) — já enriquecido no CATMAT.
+- [ ] Paginação completa do histórico de preços (hoje mostra os primeiros 10 registros).
+- [ ] Validação dos links PNCP em produção (conferir as 9 linhas de exemplo na seção 16).
 
-Diga qual dessas ações devo priorizar e eu executo o próximo passo.
+---
+
+## 16. 🔗 Link de auditoria da compra no PNCP (resolução oficial)
+
+Implementado em `src/lib/pncp.ts` e aplicado no backend (rotas de preços de CATSER e CATMAT), **sem montar link no frontend**.
+
+### Fluxo em cascata
+
+1. **Pesquisa de preço** (Compras.gov.br) → fornece `idCompra`, `idItemCompra`, `codigoUasg`, `modalidade`, `dataCompra` (a API **não** retorna `linkCompraPncp`).
+2. **Primário (autoritativo)** — módulo de contratações:
+   `GET /modulo-contratacoes/1.1_consultarContratacoes_PNCP_14133_Id?tipo=idCompra&codigo={idCompra}`
+   → `orgaoEntidadeCnpj`, `anoCompraPncp`, `sequencialCompraPncp`, `numeroControlePNCP`.
+3. **Secundário** — busca pública do PNCP por `UASG + ano + número da contratação` (número decodificado do `idCompra`), casando título `nº {numero}/{ano}` e usando o `item_url`.
+4. **Link final:** `https://pncp.gov.br/app/editais/{cnpj}/{anoCompra}/{sequencialCompra}` (CNPJ só números; sequencial sem zeros à esquerda).
+5. **Fallback textual** (não bloqueia): `https://pncp.gov.br/app/compras?busca={idCompra}`.
+
+### Estrutura do `idCompra`
+
+`{UASG(6)}{modalidade(2)}{numero(N)}{ano(4)}` — o ano e o número são decodificados para o resolver secundário.
+
+### Validação com dados reais (2026-08-19)
+
+| idCompra | Link gerado |
+| --- | --- |
+| `98586505900152026` | `editais/28521748000159/2026/96` ✓ |
+| `15690506000092026` | `editais/24134488000108/2026/96` |
+| `25442306000952026` | `editais/33781055000135/2026/1229` |
+| `15307906001172027` | `editais/75095679000149/2027/3` (ano 2027 no idCompra) |
+| `15851706000822026` | `editais/11234780000150/2026/34` |
+| `15306506002532026` | `editais/24098477000110/2026/91` |
+| `15404006003702026` | `editais/00038174000143/2026/209` |
+| `98624905900482026` | `editais/46634101000115/2026/140` |
+| `15311505900112026` | `editais/33663683000116/2026/133` |
+
+### Notas
+
+- O módulo de contratações tem lacunas (alguns `idCompra` de órgãos federais retornam vazio); o resolver secundário cobre esses casos.
+- O `numeroControlePNCP` pode ser usado como validação (ex.: `28521748000159-1-000096/2026` confirma o sequencial 96).
+- A `CHAVE_API_COMPRAS_GOV` (`.env.local`) **não** autentica o módulo UASG/contratações (a API usa login+senha → JWT); o fluxo funciona **sem chave**.
+
+---
+
+## 17. 📄 Pesquisa de preços em Excel (IN 65/2021)
+
+- Geração server-side em `src/features/pesquisa/pesquisa-precos.excel.ts` (biblioteca `xlsx`).
+- 3 abas: **Documento** (identificação, objeto, filtros, nº de preços, preço de referência), **Preços** (lista com ID Compra + Link PNCP), **Resumo** (métricas + metodologia).
+- Endpoint: `POST /api/catser/pesquisa/export`.
+- UI: bloco "Gerar pesquisa de preços (IN 65/2021)" no `CatserPrecosPanel`, com formulário (órgão, responsável, processo, observações) e botão "Baixar Excel".
+
+---
+
+## 18. 🗂️ Referência para novas implementações
+
+Ver [`docs/catser/REFERENCIA-IMPLEMENTACAO.md`](catser/REFERENCIA-IMPLEMENTACAO.md) — padrões validados, endpoints oficiais, como testar e lições aprendidas desta sessão.
