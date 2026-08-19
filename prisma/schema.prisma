@@ -44,6 +44,7 @@ model CatserItem {
   codigoServico       Int
   nomeServico         String
   statusServico       Boolean @default(false)
+  busca_tsv           Unsupported("tsvector")?
 
   @@index([codigoGrupo])
   @@index([codigoClasse])
