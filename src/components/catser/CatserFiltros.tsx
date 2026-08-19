@@ -19,7 +19,7 @@ export function CatserFiltros({ onChange }: Props) {
 
   return (
     <div className="flex flex-col gap-2 md:flex-row md:items-center">
-      <Select value={uf} onValueChange={(v) => setUf(String(v))} className="w-40">
+      <Select value={uf} onChange={(e) => setUf((e.target as HTMLSelectElement).value)} className="w-40">
         <option value="">UF</option>
         <option value="SP">SP</option>
         <option value="RJ">RJ</option>
