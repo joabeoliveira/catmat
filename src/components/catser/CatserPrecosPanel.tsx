@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Filter, Loader2, RotateCcw } from 'lucide-react'
+import { Download, FileSpreadsheet, Filter, Loader2, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { CatserPrecosTable } from '@/components/catser/CatserPrecosTable'
-import type { CatserPrecosResponse } from '@/features/catser/catser.types'
+import type { CatserItem, CatserPrecosResponse } from '@/features/catser/catser.types'
+import type { FiltrosPesquisa, IdentificacaoPesquisa } from '@/features/pesquisa/pesquisa-precos.excel'
 
 const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
 
@@ -23,7 +24,7 @@ const ESFERAS = [
 ]
 
 interface Props {
-  codigoServico: number
+  servico: CatserItem
 }
 
 interface FiltrosAplicados {
@@ -35,16 +36,26 @@ interface FiltrosAplicados {
   dataFim?: string
 }
 
-export function CatserPrecosPanel({ codigoServico }: Props) {
+export function CatserPrecosPanel({ servico }: Props) {
+  const codigoServico = servico.codigoServico
   const [uf, setUf] = useState('')
   const [uasg, setUasg] = useState('')
   const [poder, setPoder] = useState('')
   const [esfera, setEsfera] = useState('')
   const [dataInicio, setDataInicio] = useState('')
   const [dataFim, setDataFim] = useState('')
+  const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosPesquisa>({})
   const [data, setData] = useState<CatserPrecosResponse | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
+
+  // Identificação para o documento formal
+  const [pesquisaAberta, setPesquisaAberta] = useState(false)
+  const [gerando, setGerando] = useState(false)
+  const [orgao, setOrgao] = useState('')
+  const [responsavel, setResponsavel] = useState('')
+  const [processo, setProcesso] = useState('')
+  const [observacoes, setObservacoes] = useState('')
 
   async function consultar(overrides?: FiltrosAplicados) {
     const flt: FiltrosAplicados = {
@@ -71,6 +82,14 @@ export function CatserPrecosPanel({ codigoServico }: Props) {
       const payload = await resp.json()
       if (!resp.ok) throw new Error(payload?.error || 'Falha ao consultar preços.')
       setData(payload)
+      setFiltrosAplicados({
+        uf: flt.uf || undefined,
+        uasg: flt.uasg || undefined,
+        poder: flt.poder || undefined,
+        esfera: flt.esfera || undefined,
+        dataInicio: flt.dataInicio || undefined,
+        dataFim: flt.dataFim || undefined,
+      })
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Falha ao consultar preços.')
       setData(null)
@@ -92,6 +111,48 @@ export function CatserPrecosPanel({ codigoServico }: Props) {
     setDataInicio('')
     setDataFim('')
     void consultar({ uf: '', uasg: '', poder: '', esfera: '', dataInicio: '', dataFim: '' })
+  }
+
+  async function baixarExcel() {
+    if (!data) return
+    setGerando(true)
+    try {
+      const identificacao: IdentificacaoPesquisa = { orgao, responsavel, processo, observacoes }
+      const resp = await fetch('/api/catser/pesquisa/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identificacao,
+          filtros: filtrosAplicados,
+          servico: {
+            codigoServico: servico.codigoServico,
+            nomeServico: servico.nomeServico,
+            nomeGrupo: servico.nomeGrupo,
+            nomeClasse: servico.nomeClasse,
+          },
+          data,
+        }),
+      })
+
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => null)
+        throw new Error(payload?.error || 'Falha ao gerar a planilha.')
+      }
+
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `pesquisa-precos-catser-${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Falha ao gerar a planilha.')
+    } finally {
+      setGerando(false)
+    }
   }
 
   return (
@@ -167,7 +228,71 @@ export function CatserPrecosPanel({ codigoServico }: Props) {
           <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
         </div>
       ) : data ? (
-        <CatserPrecosTable data={data} />
+        <>
+          <CatserPrecosTable data={data} />
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+            <div>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Gerar pesquisa de preços (IN 65/2021)
+              </h4>
+              <p className="text-xs text-slate-500">
+                Monte um documento formal com os preços e filtros atuais e baixe em Excel para anexar ao processo.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setPesquisaAberta((value) => !value)}>
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              {pesquisaAberta ? 'Fechar' : 'Montar pesquisa'}
+            </Button>
+          </div>
+
+          {pesquisaAberta ? (
+            <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Órgão solicitante</label>
+                <Input
+                  aria-label="Órgão solicitante"
+                  placeholder="Ex: Prefeitura Municipal de ..."
+                  value={orgao}
+                  onChange={(event) => setOrgao(event.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Responsável pela pesquisa</label>
+                <Input
+                  aria-label="Responsável pela pesquisa"
+                  placeholder="Nome do servidor responsável"
+                  value={responsavel}
+                  onChange={(event) => setResponsavel(event.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Nº do processo</label>
+                <Input
+                  aria-label="Número do processo"
+                  placeholder="Ex: 2026.000.000000-0"
+                  value={processo}
+                  onChange={(event) => setProcesso(event.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Observações</label>
+                <Input
+                  aria-label="Observações"
+                  placeholder="Informações complementares (opcional)"
+                  value={observacoes}
+                  onChange={(event) => setObservacoes(event.target.value)}
+                />
+              </div>
+              <div className="flex items-end justify-end md:col-span-2">
+                <Button size="sm" onClick={() => void baixarExcel()} disabled={gerando}>
+                  {gerando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Baixar Excel
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </section>
   )

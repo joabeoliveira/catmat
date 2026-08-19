@@ -178,6 +178,7 @@ Objetivo: oferecer uma interface simples e reutilizável para pesquisar serviço
 - [ ] Acessibilidade e responsividade (mesmas regras do projeto).
 
 Notas de implementação:
+
 - Reutilizar estilos e UI primitives em `src/components/ui/`.
 - Priorizar renderização server-side para conteúdos estáticos (onde aplicável) e chamadas dinâmica por cliente para métricas pesadas.
 
@@ -241,7 +242,7 @@ Motivos: mantém histórico separado (não conflita com `CompraItem` e Catmat), 
 
 ## 15. Próximas ações que eu posso executar agora
 
-- Criar a página `src/app/catser/page.tsx` e os componentes básicos e abrir PR (posso fazer e pushar). 
+- Criar a página `src/app/catser/page.tsx` e os componentes básicos e abrir PR (posso fazer e pushar).
 - Gerar o workflow GitHub Action para import manual em produção.
 - Implementar o schema `CompraServicoItem` + `ServicoPrecoResumo` no `prisma/schema.prisma` e abrir PR para revisar a migração.
 

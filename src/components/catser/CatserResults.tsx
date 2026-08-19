@@ -114,7 +114,7 @@ export function CatserResults({ data, isLoading, error, pagina, onPagina, onTent
 
             {precoAberto ? (
               <div className="border-t border-slate-200 dark:border-slate-800">
-                <CatserPrecosPanel codigoServico={item.codigoServico} />
+                <CatserPrecosPanel servico={item} />
               </div>
             ) : null}
           </Card>

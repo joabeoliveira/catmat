@@ -95,10 +95,11 @@ LIMIT $limite OFFSET ($pagina - 1) * $limite;
 ```
 
   Observações obrigatórias:
-  - Usar `Prisma.sql`/`Prisma.join` para compor filtros dinamicamente — **nunca** interpolar string do usuário no SQL.
-  - `SET pg_trgm.similarity_threshold` default (0.3) é aceitável; não alterar globalmente.
-  - Sem termo de busca: manter caminho atual (findMany paginado, sem score).
-  - Banco vazio ou erro: manter fallback `buscarNoMock` intacto.
+
+- Usar `Prisma.sql`/`Prisma.join` para compor filtros dinamicamente — **nunca** interpolar string do usuário no SQL.
+- `SET pg_trgm.similarity_threshold` default (0.3) é aceitável; não alterar globalmente.
+- Sem termo de busca: manter caminho atual (findMany paginado, sem score).
+- Banco vazio ou erro: manter fallback `buscarNoMock` intacto.
 - [x] **Score normalizado para UI:** converter `score` bruto para percentual 0–100 relativo ao maior score da página 1 do resultado (`Math.min(100, Math.round((score / topScore) * 100))`) e classificar: `>= 95` → `"exato"`, `>= 70` → `"alta"`, senão `"similar"`. Adicionar aos tipos: `compatibilidade: number` e `faixa: 'exato' | 'alta' | 'similar'` em `BuscaItem`/`BuscaResultado` (`catmat.types.ts` e `useBuscaItens.ts`).
 - [x] **Facetas reais:** `filtrosSugeridos` deve vir de query `GROUP BY` sobre o conjunto filtrado (top 500 por score no máximo): `{ grupos: [{codigo, nome, quantidade}], classes: [...], pdms: [...] }`. Atualizar tipos correspondentes.
 - [x] Contagem por faixa de compatibilidade no resultado (`contagens: { exato: n, alta: n, similar: n }`) para a UI da Fase 3 exibir os chips como a referência ("Resultado exato 3 · Alta similaridade 7 · Mais similares 90").
