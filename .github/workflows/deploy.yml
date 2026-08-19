@@ -1,0 +1,41 @@
+# .github/workflows/deploy.yml
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Lint
+        run: pnpm lint
+        
+      - name: Type check
+        run: pnpm tsc --noEmit
+        
+      - name: Run tests
+        run: pnpm test
+        
+  deploy:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Easypanel
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.EASYPANEL_TOKEN }}" \
+            ${{ secrets.EASYPANEL_WEBHOOK_URL }}

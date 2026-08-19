@@ -1,0 +1,40 @@
+{
+  "name": "mvp-grade-catmat-catser",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "seed:csv": "node ./scripts/seed-from-csv.mjs",
+    "import:nfe": "node ./scripts/import-nfe-items.mjs",
+    "import:bps": "node ./scripts/import-bps-items.mjs",
+    "db:search-setup": "psql \"$DATABASE_URL\" -f prisma/sql/001_fts_trgm.sql",
+    "db:nfe-setup": "psql \"$DATABASE_URL\" -f prisma/sql/002_nfe_referencia.sql",
+    "db:bps-setup": "psql \"$DATABASE_URL\" -f prisma/sql/003_bps_referencia.sql",
+    "db:catser-setup": "psql \"$DATABASE_URL\" -f prisma/sql/004_catser_referencia.sql",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "next": "^14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tailwind-merge": "^2.4.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "prisma": "5.22.0",
+    "tailwindcss": "^3.4.16",
+    "tailwindcss-animate": "^1.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.7.3"
+  }
+}
