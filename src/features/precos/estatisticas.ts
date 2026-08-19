@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { linkBuscaPncp, montarLinkPncp } from '@/lib/pncp'
 
 export const FONTE_PRECOS = 'Compras.gov.br / PNCP'
 
@@ -15,6 +16,8 @@ export interface CompraPreco {
   municipio?: string | null
   estado?: string | null
   marca?: string | null
+  /** Identificador da compra (usado para montar o link de auditoria no PNCP). */
+  idCompra?: number | string | null
 }
 
 export interface CompraDetalhe {
@@ -28,6 +31,9 @@ export interface CompraDetalhe {
   municipio: string | null
   estado: string | null
   marca: string | null
+  idCompra?: number | string | null
+  /** Link de auditoria da compra no PNCP (resolução oficial) ou fallback. */
+  link_evidencia?: string | null
 }
 
 export interface UnidadeDisponivel {
@@ -143,6 +149,7 @@ async function comprasDoBanco(codigoItem: number): Promise<CompraPreco[]> {
     const rows = await prisma.compraItem.findMany({
       where: { codigoItemCatalogo: codigoItem },
       select: {
+        idCompra: true,
         precoUnitario: true,
         dataCompra: true,
         siglaUnidadeFornecimento: true,
@@ -158,6 +165,7 @@ async function comprasDoBanco(codigoItem: number): Promise<CompraPreco[]> {
       },
     })
     return rows.map((row) => ({
+      idCompra: row.idCompra,
       precoUnitario: row.precoUnitario,
       dataCompra: row.dataCompra,
       unidadeSigla: row.siglaUnidadeFornecimento,
@@ -200,6 +208,7 @@ async function comprasDoGoverno(codigoItem: number): Promise<CompraPreco[]> {
     const resultado = Array.isArray(payload?.resultado) ? payload.resultado : []
     const texto = (valor: unknown) => (typeof valor === 'string' && valor.trim() ? valor.trim() : null)
     return resultado.map((compra: Record<string, unknown>) => ({
+      idCompra: typeof compra.idCompra === 'number' ? compra.idCompra : texto(compra.idCompra),
       precoUnitario: Number(compra.precoUnitario),
       dataCompra: texto(compra.dataCompra),
       unidadeSigla: texto(compra.siglaUnidadeFornecimento),
@@ -295,21 +304,32 @@ export async function metricasDoItem(codigoItem: number, unidadeSigla?: string) 
       }
     })
 
-  const comprasRecentes: CompraDetalhe[] = [...consideradas]
-    .sort((a, b) => new Date(b.dataCompra ?? 0).getTime() - new Date(a.dataCompra ?? 0).getTime())
-    .slice(0, 10)
-    .map((compra) => ({
-      precoUnitario: Number(compra.precoUnitario),
-      dataCompra: compra.dataCompra ? new Date(compra.dataCompra).toISOString() : null,
-      unidade: compra.unidadeNome || compra.unidadeSigla || null,
-      quantidade: compra.quantidade ?? null,
-      orgao: compra.orgao ?? null,
-      uasg: compra.uasg ?? null,
-      fornecedor: compra.fornecedor ?? null,
-      municipio: compra.municipio ?? null,
-      estado: compra.estado ?? null,
-      marca: compra.marca ?? null,
-    }))
+  const comprasRecentes: CompraDetalhe[] = await Promise.all(
+    [...consideradas]
+      .sort((a, b) => new Date(b.dataCompra ?? 0).getTime() - new Date(a.dataCompra ?? 0).getTime())
+      .slice(0, 10)
+      .map(async (compra) => {
+        let link_evidencia: string | null = null
+        if (compra.idCompra != null) {
+          const id = String(compra.idCompra)
+          link_evidencia = (await montarLinkPncp(id).catch(() => null)) ?? linkBuscaPncp(id)
+        }
+        return {
+          precoUnitario: Number(compra.precoUnitario),
+          dataCompra: compra.dataCompra ? new Date(compra.dataCompra).toISOString() : null,
+          unidade: compra.unidadeNome || compra.unidadeSigla || null,
+          quantidade: compra.quantidade ?? null,
+          orgao: compra.orgao ?? null,
+          uasg: compra.uasg ?? null,
+          fornecedor: compra.fornecedor ?? null,
+          municipio: compra.municipio ?? null,
+          estado: compra.estado ?? null,
+          marca: compra.marca ?? null,
+          idCompra: compra.idCompra ?? null,
+          link_evidencia,
+        }
+      }),
+  )
 
   return {
     ...metricas,

@@ -1,75 +1,96 @@
-// Helpers (server-side) para construir o link direto da compra no Portal
-// Nacional de Contratações Públicas (PNCP).
+// Resolução do link de auditoria da compra no PNCP, a partir dos dados
+// oficiais do Compras.gov.br (dados abertos). Fluxo definido:
 //
-// Formato do link: https://pncp.gov.br/app/editais/{cnpjOrgao}/{ano}/{numeroCompra}
+// 1) Pesquisa de preço -> idCompra (e demais campos: idItemCompra, codigoUasg,
+//    modalidade, dataCompra). A API de preços NÃO retorna link pronto, então
+//    sempre resolvemos pela contratação.
+// 2) Módulo contratações:
+//    GET /modulo-contratacoes/1.1_consultarContratacoes_PNCP_14133_Id
+//        ?tipo=idCompra&codigo={idCompra}
+//    -> orgaoEntidadeCnpj, anoCompraPncp, sequencialCompraPncp, numeroControlePNCP
+// 3) Link final:
+//    https://pncp.gov.br/app/editais/{cnpj}/{anoCompra}/{sequencialCompra}
+//    (CNPJ só com números; sequencial sem zeros à esquerda)
 //
-// O idCompra retornado pela API de preços tem o formato:
-//   {UASG(6)}{modalidade(2)}{numeroCompra(5, zeros à esquerda)}{ano(4)}
-// Ex.: "10230306002292026" -> UASG 102303, modalidade 06, nº 229, ano 2026.
-// O CNPJ do órgão é resolvido pela busca pública do PNCP por UASG.
+// Se a resolução falhar, o chamador deve usar linkBuscaPncp() como fallback
+// textual de auditoria (não bloqueia o salvamento).
 
 const URL_PNCP = 'https://pncp.gov.br/app'
 const URL_BUSCA_PNCP = 'https://pncp.gov.br/app/compras'
-const URL_SEARCH_PNCP = 'https://pncp.gov.br/api/search'
+const URL_CONTRATACOES_ID =
+  'https://dadosabertos.compras.gov.br/modulo-contratacoes/1.1_consultarContratacoes_PNCP_14133_Id'
 
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36'
-const TTL_CNPJ_MS = 1000 * 60 * 60 * 24 // 24h
-
-export interface IdCompraDecodificado {
-  uasg: string
-  modalidade: string
-  numeroCompra: number
-  ano: string
+export interface ResolucaoContratacao {
+  idCompra: string
+  numeroControlePNCP?: string | null
+  anoCompraPncp?: number | null
+  sequencialCompraPncp?: number | null
+  orgaoEntidadeCnpj?: string | null
+  unidadeOrgaoCodigoUnidade?: string | null
+  modalidadeIdPncp?: number | null
+  dataPublicacaoPncp?: string | null
 }
 
-export function decodificarIdCompra(idCompra: string): IdCompraDecodificado | null {
-  if (!/^\d{17}$/.test(idCompra)) return null
-  return {
-    uasg: idCompra.slice(0, 6),
-    modalidade: idCompra.slice(6, 8),
-    numeroCompra: parseInt(idCompra.slice(8, 13), 10),
-    ano: idCompra.slice(13, 17),
-  }
+interface CacheEntry {
+  resolucao: ResolucaoContratacao | null
+  quando: number
 }
 
-// Cache simples UASG -> CNPJ (evita chamadas repetidas à busca do PNCP)
-const cacheCnpjPorUasg = new Map<string, { cnpj: string; quando: number }>()
+const TTL_MS = 1000 * 60 * 60 * 24 // 24h
+const cacheResolucao = new Map<string, CacheEntry>()
 
-export async function buscarCnpjPorUasg(uasg: string): Promise<string | null> {
-  const cache = cacheCnpjPorUasg.get(uasg)
-  if (cache && Date.now() - cache.quando < TTL_CNPJ_MS) return cache.cnpj
+/** Consulta o módulo de contratações pelo idCompra (endpoint oficial). */
+export async function resolverContratacaoPorIdCompra(idCompra: string): Promise<ResolucaoContratacao | null> {
+  const cache = cacheResolucao.get(idCompra)
+  if (cache && Date.now() - cache.quando < TTL_MS) return cache.resolucao
 
   try {
-    const url = `${URL_SEARCH_PNCP}?tipos_documento=edital&q=${encodeURIComponent(uasg)}&pagina=1&tamanhoPagina=1`
+    const url = `${URL_CONTRATACOES_ID}?tipo=idCompra&codigo=${encodeURIComponent(idCompra)}`
     const response = await fetch(url, {
-      headers: { accept: 'application/json', 'user-agent': USER_AGENT },
+      headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(10_000),
     })
     if (!response.ok) return null
     const payload = await response.json().catch(() => null)
-    const items = Array.isArray(payload?.items) ? payload.items : []
-    const cnpj = items[0]?.orgao_cnpj
-    if (cnpj) {
-      const valor = String(cnpj)
-      cacheCnpjPorUasg.set(uasg, { cnpj: valor, quando: Date.now() })
-      return valor
+    const item = Array.isArray(payload?.resultado) ? payload.resultado[0] : null
+    if (!item) {
+      cacheResolucao.set(idCompra, { resolucao: null, quando: Date.now() })
+      return null
     }
+
+    const resolucao: ResolucaoContratacao = {
+      idCompra: String(item.idCompra ?? idCompra),
+      numeroControlePNCP: item.numeroControlePNCP ?? null,
+      anoCompraPncp: typeof item.anoCompraPncp === 'number' ? item.anoCompraPncp : null,
+      sequencialCompraPncp: typeof item.sequencialCompraPncp === 'number' ? item.sequencialCompraPncp : null,
+      orgaoEntidadeCnpj: item.orgaoEntidadeCnpj ?? null,
+      unidadeOrgaoCodigoUnidade: item.unidadeOrgaoCodigoUnidade ?? null,
+      modalidadeIdPncp: typeof item.modalidadeIdPncp === 'number' ? item.modalidadeIdPncp : null,
+      dataPublicacaoPncp: item.dataPublicacaoPncp ?? null,
+    }
+    cacheResolucao.set(idCompra, { resolucao, quando: Date.now() })
+    return resolucao
   } catch {
-    // noop
+    return null
   }
-  return null
 }
 
-/** Monta o link direto no formato editais/{cnpj}/{ano}/{numero}. Retorna null se não for possível. */
+/** Monta o link final de auditoria no PNCP. Retorna null se não for possível. */
 export async function montarLinkPncp(idCompra: string): Promise<string | null> {
-  const decod = decodificarIdCompra(idCompra)
-  if (!decod) return null
-  const cnpj = await buscarCnpjPorUasg(decod.uasg)
-  if (!cnpj) return null
-  return `${URL_PNCP}/editais/${cnpj}/${decod.ano}/${decod.numeroCompra}`
+  const resolucao = await resolverContratacaoPorIdCompra(idCompra)
+  if (!resolucao) return null
+
+  const cnpj = resolucao.orgaoEntidadeCnpj?.replace(/\D/g, '') || ''
+  const ano = resolucao.anoCompraPncp
+  const sequencial = resolucao.sequencialCompraPncp
+
+  if (!cnpj || !ano || sequencial == null) return null
+
+  const sequencialSemZeros = String(sequencial).replace(/^0+/, '') || '0'
+  return `${URL_PNCP}/editais/${cnpj}/${ano}/${sequencialSemZeros}`
 }
 
-/** Link de busca (fallback) quando o link direto não puder ser montado. */
+/** Link de busca (fallback textual de auditoria) quando a resolução falha. */
 export function linkBuscaPncp(idCompra: string): string {
   return `${URL_BUSCA_PNCP}?busca=${encodeURIComponent(idCompra)}`
 }

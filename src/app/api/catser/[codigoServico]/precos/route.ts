@@ -38,11 +38,14 @@ export async function GET(
       dataCompraFim: searchParams.get('dataCompraFim') || undefined,
     })
 
-    // Enriquece cada item com o link direto do PNCP (best-effort, com cache)
+    // Enriquece cada item com o link de auditoria do PNCP (resolução oficial
+    // pelo módulo de contratações; fallback textual de busca quando não resolve)
     await Promise.all(
       resultado.itens.map(async (item) => {
         if (!item.idCompra) return
-        item.linkPncp = (await montarLinkPncp(item.idCompra).catch(() => null)) ?? linkBuscaPncp(item.idCompra)
+        const link = (await montarLinkPncp(item.idCompra).catch(() => null)) ?? linkBuscaPncp(item.idCompra)
+        item.linkPncp = link
+        item.link_evidencia = link
       }),
     )
 

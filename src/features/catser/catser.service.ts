@@ -162,6 +162,7 @@ function toPrecoItem(row: PrecoServicoRaw) {
     objetoCompra: row.objetoCompra ?? null,
     descricaoDetalhadaItem: row.descricaoDetalhadaItem ?? null,
     linkPncp: null as string | null,
+    link_evidencia: null as string | null,
   }
 }
 
