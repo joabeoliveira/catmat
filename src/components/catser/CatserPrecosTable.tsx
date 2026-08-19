@@ -113,10 +113,10 @@ export function CatserPrecosTable({ data }: Props) {
                             {copiadoId === item.idCompra ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                           </button>
                           <a
-                            href={`${URL_PNCP}?busca=${encodeURIComponent(item.idCompra)}`}
+                            href={item.linkPncp ?? `${URL_PNCP}?busca=${encodeURIComponent(item.idCompra)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Ver no PNCP (Compras.gov.br)"
+                            title="Ver compra no PNCP (Compras.gov.br)"
                             aria-label="Ver compra no PNCP"
                             className="rounded p-1 text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400"
                           >

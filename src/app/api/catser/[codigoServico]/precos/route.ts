@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { CatserService } from '@/features/catser/catser.service'
 import { allowRequest, clientIp, tooManyRequests } from '@/lib/rate-limit'
+import { linkBuscaPncp, montarLinkPncp } from '@/lib/pncp'
 
 function numberParam(value: string | null) {
   if (!value) return undefined
@@ -36,6 +37,14 @@ export async function GET(
       dataCompraInicio: searchParams.get('dataCompraInicio') || undefined,
       dataCompraFim: searchParams.get('dataCompraFim') || undefined,
     })
+
+    // Enriquece cada item com o link direto do PNCP (best-effort, com cache)
+    await Promise.all(
+      resultado.itens.map(async (item) => {
+        if (!item.idCompra) return
+        item.linkPncp = (await montarLinkPncp(item.idCompra).catch(() => null)) ?? linkBuscaPncp(item.idCompra)
+      }),
+    )
 
     return NextResponse.json(resultado)
   } catch (error) {

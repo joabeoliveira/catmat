@@ -57,6 +57,8 @@ export interface CatserPrecoItem {
   dataCompra: string | null
   objetoCompra: string | null
   descricaoDetalhadaItem: string | null
+  /** Link direto no PNCP (editais/{cnpj}/{ano}/{numero}), quando resolvível. */
+  linkPncp?: string | null
 }
 
 export interface CatserMetricas {

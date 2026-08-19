@@ -161,6 +161,7 @@ function toPrecoItem(row: PrecoServicoRaw) {
     dataCompra: row.dataCompra ?? null,
     objetoCompra: row.objetoCompra ?? null,
     descricaoDetalhadaItem: row.descricaoDetalhadaItem ?? null,
+    linkPncp: null as string | null,
   }
 }
 

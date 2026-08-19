@@ -98,7 +98,7 @@ export function gerarPlanilhaPesquisaPrecos(params: DadosPesquisaPrecos): Buffer
     ...data.itens.map((item) => [
       formatarData(item.dataCompra),
       item.idCompra || '—',
-      item.idCompra ? `${URL_PNCP}?busca=${encodeURIComponent(item.idCompra)}` : '—',
+      item.linkPncp || (item.idCompra ? `${URL_PNCP}?busca=${encodeURIComponent(item.idCompra)}` : '—'),
       item.nomeUasg || '—',
       item.codigoUasg || '—',
       item.nomeFornecedor || '—',
