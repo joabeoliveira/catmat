@@ -25,7 +25,7 @@ export async function POST(request: Request) {
         totalPaginas: 1,
         ano,
         aplicarInpc: Boolean(body.aplicarInpc),
-        fatorInpc: 1,
+        fatorInpc: body.aplicarInpc && typeof body.fatorInpc === 'number' ? body.fatorInpc : 1,
       }
     } else {
       const service = new SalariosService()

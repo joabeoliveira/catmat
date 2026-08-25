@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type {
   SalarioBuscaResponse,
   SalarioCard,
+  SalarioGradeItem,
   SalarioSugestao,
   SalarioUf,
 } from '@/features/salarios/salarios.types'
@@ -73,7 +74,7 @@ function CardSalario({ item, aplicarInpc, adicionar }: { item: SalarioCard; apli
             {formatarMoeda(item.estatisticasOriginal.mediana)}
           </p>
         ) : null}
-        {item.percentis ? <p className="text-xs text-slate-500 dark:text-slate-400">Percentis: p25 {formatarMoeda(item.percentis.p25)} · p50 {formatarMoeda(item.percentis.p50)} · p75 {formatarMoeda(item.percentis.p75)}</p> : null}
+        {item.percentis ? <p className="text-xs text-slate-500 dark:text-slate-400">Faixa inferior (P25): {formatarMoeda(item.percentis.p25)} · valor central (mediana/P50): {formatarMoeda(item.percentis.p50)} · faixa superior (P75): {formatarMoeda(item.percentis.p75)}</p> : null}
         {item.sinonimos?.length ? <p className="text-xs text-cyan-700 dark:text-cyan-300">Sinônimos: {item.sinonimos.slice(0, 3).join(', ')}</p> : null}
       </CardContent>
     </Card>
@@ -94,7 +95,7 @@ export function SalariosSearch() {
   const [error, setError] = useState<string | null>(null)
   const [pagina, setPagina] = useState(1)
   const [exportando, setExportando] = useState(false)
-  const [grade, setGrade] = useState<SalarioCard[]>([])
+  const [grade, setGrade] = useState<SalarioGradeItem[]>([])
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const digitouRef = useRef(false)
@@ -102,7 +103,17 @@ export function SalariosSearch() {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem('catmat:grade-salarios')
-      if (saved) setGrade(JSON.parse(saved))
+      if (saved) {
+        const linhas = JSON.parse(saved) as Array<Partial<SalarioGradeItem> & SalarioCard>
+        setGrade(linhas.map((linha) => ({
+          ...linha,
+          quantidade: Math.max(1, Number(linha.quantidade) || 1),
+          criterioReferencia: linha.criterioReferencia || 'mediana',
+          salarioReferencia: typeof linha.salarioReferencia === 'number'
+            ? linha.salarioReferencia
+            : linha.estatisticas.mediana,
+        })))
+      }
     } catch { /* ignora armazenamento indisponível */ }
   }, [])
 
@@ -111,11 +122,27 @@ export function SalariosSearch() {
   }, [grade])
 
   function adicionarNaGrade(item: SalarioCard) {
-    setGrade((atual) => atual.some((linha) => linha.cbo === item.cbo) ? atual : [...atual, item])
+    setGrade((atual) => atual.some((linha) => linha.cbo === item.cbo) ? atual : [...atual, {
+      ...item,
+      quantidade: 1,
+      criterioReferencia: 'mediana',
+      salarioReferencia: item.estatisticas.mediana,
+    }])
   }
 
   function removerDaGrade(cbo: number) {
     setGrade((atual) => atual.filter((linha) => linha.cbo !== cbo))
+  }
+
+  function atualizarGrade(cbo: number, alteracoes: Partial<SalarioGradeItem>) {
+    setGrade((atual) => atual.map((linha) => linha.cbo === cbo ? { ...linha, ...alteracoes } : linha))
+  }
+
+  function valorDoCriterio(linha: SalarioGradeItem, criterio: SalarioGradeItem['criterioReferencia']) {
+    if (criterio === 'p25') return linha.percentis?.p25 ?? null
+    if (criterio === 'p75') return linha.percentis?.p75 ?? null
+    if (criterio === 'media') return linha.estatisticas.media
+    return linha.estatisticas.mediana
   }
 
   useEffect(() => {
@@ -223,7 +250,7 @@ export function SalariosSearch() {
       const resp = await fetch('/api/salarios/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ termo, uf, ano, aplicarInpc, limite: 200, grade }),
+        body: JSON.stringify({ termo, uf, ano, aplicarInpc, fatorInpc: data?.fatorInpc ?? 1, limite: 500, grade }),
       })
       if (!resp.ok) throw new Error('Falha ao gerar a planilha.')
       const blob = await resp.blob()
@@ -410,9 +437,31 @@ export function SalariosSearch() {
           ))}
 
           {grade.length ? <Card>
-            <CardHeader><CardTitle>Grade de postos ({grade.length})</CardTitle><CardDescription>Postos selecionados para revisão e exportação.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Grade de postos ({grade.length} funções · {grade.reduce((total, linha) => total + linha.quantidade, 0)} postos)</CardTitle><CardDescription>Defina a quantidade e o salário mensal que será usado como referência na formação de preços.</CardDescription></CardHeader>
             <CardContent className="space-y-2">
-              {grade.map((linha) => <div key={linha.cbo} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800"><div className="min-w-0"><strong>{linha.cbo}</strong> · {linha.titulo}<div className="text-xs text-slate-500">Mediana: {formatarMoeda(linha.estatisticas.mediana)} · p75: {formatarMoeda(linha.percentis?.p75 ?? null)}</div></div><button type="button" aria-label={`Remover ${linha.titulo} da grade`} onClick={() => removerDaGrade(linha.cbo)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-slate-500 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button></div>)}
+              {grade.map((linha) => <div key={linha.cbo} className="grid gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 lg:grid-cols-[minmax(0,1fr)_110px_230px_180px_44px] lg:items-end">
+                <div className="min-w-0"><strong>{linha.cbo}</strong> · {linha.titulo}<div className="text-xs text-slate-500">Faixa inferior (P25): {formatarMoeda(linha.percentis?.p25 ?? null)} · valor central (mediana): {formatarMoeda(linha.estatisticas.mediana)} · faixa superior (P75): {formatarMoeda(linha.percentis?.p75 ?? null)}</div></div>
+                <label className="text-xs text-slate-600 dark:text-slate-300">Quantidade
+                  <Input type="number" min={1} max={9999} value={linha.quantidade} onChange={(event) => atualizarGrade(linha.cbo, { quantidade: Math.max(1, Number(event.target.value) || 1) })} className="mt-1" />
+                </label>
+                <label className="text-xs text-slate-600 dark:text-slate-300">Referência salarial
+                  <select value={linha.criterioReferencia} onChange={(event) => {
+                    const criterio = event.target.value as SalarioGradeItem['criterioReferencia']
+                    atualizarGrade(linha.cbo, { criterioReferencia: criterio, salarioReferencia: valorDoCriterio(linha, criterio) })
+                  }} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900">
+                    <option value="p25">Faixa inferior (P25)</option>
+                    <option value="mediana">Valor central (mediana/P50)</option>
+                    <option value="media">Média observada</option>
+                    <option value="p75">Faixa superior (P75)</option>
+                    <option value="personalizado">Valor personalizado</option>
+                  </select>
+                </label>
+                <label className="text-xs text-slate-600 dark:text-slate-300">Salário mensal adotado
+                  <Input type="number" min={0} step="0.01" value={linha.salarioReferencia ?? ''} onChange={(event) => atualizarGrade(linha.cbo, { criterioReferencia: 'personalizado', salarioReferencia: event.target.value === '' ? null : Number(event.target.value) })} className="mt-1" />
+                </label>
+                <button type="button" aria-label={`Remover ${linha.titulo} da grade`} onClick={() => removerDaGrade(linha.cbo)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-slate-500 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>
+              </div>)}
+              <div className="flex justify-end pt-2"><Button type="button" onClick={exportar} disabled={exportando}><Download className="mr-2 h-4 w-4" />{exportando ? 'Gerando...' : 'Exportar grade para formação de preços'}</Button></div>
             </CardContent>
           </Card> : null}
 

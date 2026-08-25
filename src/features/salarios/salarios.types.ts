@@ -39,6 +39,16 @@ export interface SalarioCard {
   sinonimos?: string[]
 }
 
+export type CriterioSalarioGrade = 'p25' | 'mediana' | 'media' | 'p75' | 'personalizado'
+
+/** Linha escolhida pelo usuário para compor sua estimativa de postos de trabalho. */
+export interface SalarioGradeItem extends SalarioCard {
+  quantidade: number
+  criterioReferencia: CriterioSalarioGrade
+  salarioReferencia: number | null
+  observacao?: string
+}
+
 export interface SalarioHierarquia {
   grandeGrupo?: string | null
   subgrupoPrincipal?: string | null

@@ -103,6 +103,22 @@ function calcularEstatisticas(valores: number[]): EstatisticasSalario {
   }
 }
 
+function corrigirPercentis(percentis: SalarioPercentis | undefined, fator: number): SalarioPercentis | undefined {
+  if (!percentis || fator === 1) return percentis
+  const corrigir = (valor: number | null) => typeof valor === 'number' ? valor * fator : null
+  return {
+    ...percentis,
+    p10: corrigir(percentis.p10),
+    p25: corrigir(percentis.p25),
+    p50: corrigir(percentis.p50),
+    p75: corrigir(percentis.p75),
+    p90: corrigir(percentis.p90),
+    media: corrigir(percentis.media),
+    minimo: corrigir(percentis.minimo),
+    maximo: corrigir(percentis.maximo),
+  }
+}
+
 type ColunaSalario = 'salario2023' | 'salario2024' | 'salario2025' | 'salario2026'
 
 function colunaDoAno(ano: AnoSalario): ColunaSalario {
@@ -231,7 +247,7 @@ export class SalariosService {
       const estatisticas = calcularEstatisticas(aplicarInpc ? corrigidos : valores)
       const estatisticasOriginal = aplicarInpc ? calcularEstatisticas(valores) : undefined
 
-      const percentis = await this.buscarPercentis(c.cbo, ano)
+      const percentis = corrigirPercentis(await this.buscarPercentis(c.cbo, ano), aplicarInpc ? fatorInpc : 1)
       const sinonimos = await this.buscarSinonimos(c.cbo)
       return {
         cbo: c.cbo,
