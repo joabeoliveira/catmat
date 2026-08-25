@@ -33,7 +33,21 @@ export async function POST(request: Request) {
         termo: body.termo || '',
         pagina: 1,
         limite: Math.min(500, Math.max(1, body.limite || 200)),
-        filtros: { uf: body.uf || undefined, ano, aplicarInpc: Boolean(body.aplicarInpc) },
+        filtros: {
+          uf: body.uf || undefined,
+          ano,
+          aplicarInpc: Boolean(body.aplicarInpc),
+          grandeGrupo: body.grandeGrupo,
+          subgrupoPrincipal: body.subgrupoPrincipal,
+          familia: body.familia,
+          palavrasObrigatorias: body.palavrasObrigatorias,
+          palavrasExcluidas: body.palavrasExcluidas,
+          salarioMinimo: body.salarioMinimo,
+          salarioMaximo: body.salarioMaximo,
+          minimoUfs: body.minimoUfs,
+          referenciaSalarial: body.referenciaSalarial,
+          ordenarPor: body.ordenarPor,
+        },
       })
     }
 

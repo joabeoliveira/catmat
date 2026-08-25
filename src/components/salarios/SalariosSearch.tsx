@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Download, Plus, Search, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, Check, ChevronDown, Download, Filter, Plus, Search, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,8 +11,11 @@ import type {
   SalarioBuscaResponse,
   SalarioCard,
   SalarioGradeItem,
+  SalarioHierarquiaOpcao,
   SalarioSugestao,
   SalarioUf,
+  ReferenciaSalarial,
+  OrdenacaoSalarios,
 } from '@/features/salarios/salarios.types'
 
 const ANOS = [2023, 2024, 2025, 2026]
@@ -45,7 +48,7 @@ function Stat({ label, value, destaque }: { label: string; value: number | null;
   )
 }
 
-function CardSalario({ item, aplicarInpc, adicionar }: { item: SalarioCard; aplicarInpc: boolean; adicionar: (item: SalarioCard) => void }) {
+function CardSalario({ item, aplicarInpc, adicionar, comparar, selecionado }: { item: SalarioCard; aplicarInpc: boolean; adicionar: (item: SalarioCard) => void; comparar: (item: SalarioCard) => void; selecionado: boolean }) {
   return (
     <Card>
       <CardContent className="space-y-3 pt-6">
@@ -54,13 +57,18 @@ function CardSalario({ item, aplicarInpc, adicionar }: { item: SalarioCard; apli
           <Badge variant="secondary">
             {item.ufCount} UF{item.ufCount === 1 ? '' : 's'}
           </Badge>
+          {item.qualidade ? <Badge variant="secondary">Confiança {item.qualidade.confianca}</Badge> : null}
+          {item.correspondencia ? <Badge variant="outline">Aderência {item.correspondencia.aderencia}%</Badge> : null}
         </div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="font-medium text-slate-900 dark:text-white">{item.titulo}</p>
             {item.hierarquia?.familia || item.hierarquia?.grandeGrupo ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{[item.hierarquia.grandeGrupo, item.hierarquia.subgrupoPrincipal, item.hierarquia.familia].filter(Boolean).join(' · ')}</p> : null}
           </div>
-          <Button type="button" size="sm" variant="outline" onClick={() => adicionar(item)}><Plus className="mr-1 h-4 w-4" />Adicionar à grade</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant={selecionado ? 'default' : 'outline'} onClick={() => comparar(item)}>{selecionado ? <Check className="mr-1 h-4 w-4" /> : <ArrowLeftRight className="mr-1 h-4 w-4" />}{selecionado ? 'Selecionado' : 'Comparar'}</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => adicionar(item)}><Plus className="mr-1 h-4 w-4" />Adicionar à grade</Button>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Menor" value={item.estatisticas.menor} />
@@ -75,6 +83,8 @@ function CardSalario({ item, aplicarInpc, adicionar }: { item: SalarioCard; apli
           </p>
         ) : null}
         {item.percentis ? <p className="text-xs text-slate-500 dark:text-slate-400">Faixa inferior (P25): {formatarMoeda(item.percentis.p25)} · valor central (mediana/P50): {formatarMoeda(item.percentis.p50)} · faixa superior (P75): {formatarMoeda(item.percentis.p75)}</p> : null}
+        {item.correspondencia ? <p className="text-xs text-cyan-700 dark:text-cyan-300">{item.correspondencia.descricao}{item.correspondencia.termoEncontrado ? `: “${item.correspondencia.termoEncontrado}”` : ''}</p> : null}
+        {item.qualidade?.amplitudePercentual != null ? <p className="text-xs text-slate-500 dark:text-slate-400">Variação entre menor e maior salário: {(item.qualidade.amplitudePercentual * 100).toFixed(0)}% da mediana.</p> : null}
         {item.sinonimos?.length ? <p className="text-xs text-cyan-700 dark:text-cyan-300">Sinônimos: {item.sinonimos.slice(0, 3).join(', ')}</p> : null}
       </CardContent>
     </Card>
@@ -90,12 +100,25 @@ export function SalariosSearch() {
   const [ano, setAno] = useState(2026)
   const [aplicarInpc, setAplicarInpc] = useState(false)
   const [ufs, setUfs] = useState<SalarioUf[]>([])
+  const [hierarquia, setHierarquia] = useState<SalarioHierarquiaOpcao[]>([])
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  const [grandeGrupo, setGrandeGrupo] = useState('')
+  const [subgrupoPrincipal, setSubgrupoPrincipal] = useState('')
+  const [familia, setFamilia] = useState('')
+  const [palavrasObrigatorias, setPalavrasObrigatorias] = useState('')
+  const [palavrasExcluidas, setPalavrasExcluidas] = useState('')
+  const [salarioMinimo, setSalarioMinimo] = useState('')
+  const [salarioMaximo, setSalarioMaximo] = useState('')
+  const [minimoUfs, setMinimoUfs] = useState('')
+  const [referencia, setReferencia] = useState<ReferenciaSalarial>('mediana')
+  const [ordenar, setOrdenar] = useState<OrdenacaoSalarios>('relevancia')
   const [data, setData] = useState<SalarioBuscaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pagina, setPagina] = useState(1)
   const [exportando, setExportando] = useState(false)
   const [grade, setGrade] = useState<SalarioGradeItem[]>([])
+  const [comparacao, setComparacao] = useState<SalarioCard[]>([])
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const digitouRef = useRef(false)
@@ -125,9 +148,21 @@ export function SalariosSearch() {
     setGrade((atual) => atual.some((linha) => linha.cbo === item.cbo) ? atual : [...atual, {
       ...item,
       quantidade: 1,
-      criterioReferencia: 'mediana',
-      salarioReferencia: item.estatisticas.mediana,
+      criterioReferencia: referencia,
+      salarioReferencia: referencia === 'p25' ? item.percentis?.p25 ?? null : referencia === 'p75' ? item.percentis?.p75 ?? null : referencia === 'media' ? item.estatisticas.media : item.estatisticas.mediana,
     }])
+  }
+
+  function alternarComparacao(item: SalarioCard) {
+    setComparacao((atual) => {
+      if (atual.some((linha) => linha.cbo === item.cbo)) return atual.filter((linha) => linha.cbo !== item.cbo)
+      if (atual.length >= 5) {
+        setError('Você pode comparar até cinco ocupações por vez.')
+        return atual
+      }
+      setError(null)
+      return [...atual, item]
+    })
   }
 
   function removerDaGrade(cbo: number) {
@@ -150,6 +185,10 @@ export function SalariosSearch() {
       .then((response) => (response.ok ? response.json() : []))
       .then((lista) => setUfs(Array.isArray(lista) ? lista : []))
       .catch(() => setUfs([]))
+    void fetch('/api/salarios/filtros')
+      .then((response) => (response.ok ? response.json() : []))
+      .then((lista) => setHierarquia(Array.isArray(lista) ? lista : []))
+      .catch(() => setHierarquia([]))
   }, [])
 
   useEffect(() => () => abortRef.current?.abort(), [])
@@ -188,12 +227,13 @@ export function SalariosSearch() {
 
   async function carregarBusca(
     novaPagina = 1,
-    override?: { termo?: string; uf?: string; ano?: number; inpc?: boolean },
+    override?: { termo?: string; uf?: string; ano?: number; inpc?: boolean; ordenar?: OrdenacaoSalarios },
   ) {
     const q = (override?.termo ?? termo).trim()
     const ufAtual = override?.uf ?? uf
     const anoAtual = override?.ano ?? ano
     const inpcAtual = override?.inpc ?? aplicarInpc
+    const ordenarAtual = override?.ordenar ?? ordenar
 
     setError(null)
     setIsLoading(true)
@@ -202,9 +242,19 @@ export function SalariosSearch() {
       pagina: String(novaPagina),
       limite: String(LIMITE),
       ano: String(anoAtual),
+      referencia,
+      ordenar: ordenarAtual,
     })
     if (ufAtual) params.set('uf', ufAtual)
     if (inpcAtual) params.set('aplicarInpc', 'true')
+    if (grandeGrupo) params.set('grandeGrupo', grandeGrupo)
+    if (subgrupoPrincipal) params.set('subgrupoPrincipal', subgrupoPrincipal)
+    if (familia) params.set('familia', familia)
+    if (palavrasObrigatorias.trim()) params.set('incluir', palavrasObrigatorias.trim())
+    if (palavrasExcluidas.trim()) params.set('excluir', palavrasExcluidas.trim())
+    if (salarioMinimo) params.set('salarioMinimo', salarioMinimo)
+    if (salarioMaximo) params.set('salarioMaximo', salarioMaximo)
+    if (minimoUfs) params.set('minimoUfs', minimoUfs)
 
     try {
       const resp = await fetch(`/api/salarios?${params.toString()}`)
@@ -250,7 +300,7 @@ export function SalariosSearch() {
       const resp = await fetch('/api/salarios/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ termo, uf, ano, aplicarInpc, fatorInpc: data?.fatorInpc ?? 1, limite: 500, grade }),
+        body: JSON.stringify({ termo, uf, ano, aplicarInpc, fatorInpc: data?.fatorInpc ?? 1, limite: 500, grade, grandeGrupo, subgrupoPrincipal, familia, palavrasObrigatorias, palavrasExcluidas, salarioMinimo: salarioMinimo ? Number(salarioMinimo) : undefined, salarioMaximo: salarioMaximo ? Number(salarioMaximo) : undefined, minimoUfs: minimoUfs ? Number(minimoUfs) : undefined, referenciaSalarial: referencia, ordenarPor: ordenar }),
       })
       if (!resp.ok) throw new Error('Falha ao gerar a planilha.')
       const blob = await resp.blob()
@@ -268,6 +318,30 @@ export function SalariosSearch() {
       setExportando(false)
     }
   }
+
+  const grandesGrupos = Array.from(new Set(hierarquia.map((item) => item.grandeGrupo))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const subgrupos = Array.from(new Set(hierarquia.filter((item) => !grandeGrupo || item.grandeGrupo === grandeGrupo).map((item) => item.subgrupoPrincipal))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const familias = Array.from(new Set(hierarquia.filter((item) => (!grandeGrupo || item.grandeGrupo === grandeGrupo) && (!subgrupoPrincipal || item.subgrupoPrincipal === subgrupoPrincipal)).map((item) => item.familia))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const filtrosAtivos = [grandeGrupo, subgrupoPrincipal, familia, palavrasObrigatorias, palavrasExcluidas, salarioMinimo, salarioMaximo, minimoUfs].filter(Boolean).length
+
+  function limparFiltrosAvancados() {
+    setGrandeGrupo('')
+    setSubgrupoPrincipal('')
+    setFamilia('')
+    setPalavrasObrigatorias('')
+    setPalavrasExcluidas('')
+    setSalarioMinimo('')
+    setSalarioMaximo('')
+    setMinimoUfs('')
+  }
+
+  const linhasComparacao: Array<[string, (item: SalarioCard) => number | null | undefined]> = [
+    ['Faixa inferior (P25)', (item) => item.percentis?.p25],
+    ['Valor central (mediana/P50)', (item) => item.percentis?.p50 ?? item.estatisticas.mediana],
+    ['Média observada', (item) => item.estatisticas.media],
+    ['Faixa superior (P75)', (item) => item.percentis?.p75],
+    ['UFs consideradas', (item) => item.ufCount],
+  ]
 
   return (
     <div className="space-y-6">
@@ -382,12 +456,55 @@ export function SalariosSearch() {
                 </label>
 
                 <Button type="submit">Buscar</Button>
+                <Button type="button" variant="outline" onClick={() => setMostrarFiltros((valor) => !valor)} aria-expanded={mostrarFiltros}>
+                  <Filter className="mr-2 h-4 w-4" />Filtros avançados{filtrosAtivos ? ` (${filtrosAtivos})` : ''}<ChevronDown className={`ml-2 h-4 w-4 transition-transform ${mostrarFiltros ? 'rotate-180' : ''}`} />
+                </Button>
                 <Button type="button" variant="outline" onClick={exportar} disabled={exportando}>
                   <Download className="mr-2 h-4 w-4" />
                   {exportando ? 'Gerando...' : 'Exportar XLSX'}
                 </Button>
               </div>
             </div>
+            {mostrarFiltros ? <div className="space-y-4 rounded-lg border border-cyan-200 bg-cyan-50/60 p-4 dark:border-cyan-900 dark:bg-cyan-950/20">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div><p className="font-medium text-slate-900 dark:text-white">Refine a escolha da ocupação</p><p className="text-xs text-slate-600 dark:text-slate-400">Use os campos abaixo e clique em Buscar para atualizar os resultados.</p></div>
+                <Button type="button" size="sm" variant="ghost" onClick={limparFiltrosAvancados}><X className="mr-1 h-4 w-4" />Limpar filtros</Button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <label className="text-sm text-slate-700 dark:text-slate-300">Grande grupo
+                  <select value={grandeGrupo} onChange={(event) => { setGrandeGrupo(event.target.value); setSubgrupoPrincipal(''); setFamilia('') }} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="">Todos</option>{grandesGrupos.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                </label>
+                <label className="text-sm text-slate-700 dark:text-slate-300">Subgrupo principal
+                  <select value={subgrupoPrincipal} onChange={(event) => { setSubgrupoPrincipal(event.target.value); setFamilia('') }} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="">Todos</option>{subgrupos.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                </label>
+                <label className="text-sm text-slate-700 dark:text-slate-300">Família ocupacional
+                  <select value={familia} onChange={(event) => setFamilia(event.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="">Todas</option>{familias.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                </label>
+                <label className="text-sm text-slate-700 dark:text-slate-300">Palavras que devem aparecer
+                  <Input value={palavrasObrigatorias} onChange={(event) => setPalavrasObrigatorias(event.target.value)} placeholder="ex.: aeroporto, limpeza" className="mt-1" />
+                </label>
+                <label className="text-sm text-slate-700 dark:text-slate-300">Palavras para excluir
+                  <Input value={palavrasExcluidas} onChange={(event) => setPalavrasExcluidas(event.target.value)} placeholder="ex.: motorista" className="mt-1" />
+                </label>
+                <label className="text-sm text-slate-700 dark:text-slate-300">Mínimo de UFs com salário
+                  <Input type="number" min={1} max={27} value={minimoUfs} onChange={(event) => setMinimoUfs(event.target.value)} placeholder="ex.: 10" className="mt-1" />
+                </label>
+                <label className="text-sm text-slate-700 dark:text-slate-300">Salário de referência para filtrar
+                  <select value={referencia} onChange={(event) => setReferencia(event.target.value as ReferenciaSalarial)} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="mediana">Valor central (mediana/P50)</option><option value="p25">Faixa inferior (P25)</option><option value="media">Média observada</option><option value="p75">Faixa superior (P75)</option></select>
+                </label>
+                <label className="text-sm text-slate-700 dark:text-slate-300">Salário mínimo
+                  <Input type="number" min={0} step="0.01" value={salarioMinimo} onChange={(event) => setSalarioMinimo(event.target.value)} placeholder="R$" className="mt-1" />
+                </label>
+                <label className="text-sm text-slate-700 dark:text-slate-300">Salário máximo
+                  <Input type="number" min={0} step="0.01" value={salarioMaximo} onChange={(event) => setSalarioMaximo(event.target.value)} placeholder="R$" className="mt-1" />
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 border-t border-cyan-200 pt-3 dark:border-cyan-900">
+                <label className="text-sm text-slate-700 dark:text-slate-300">Ordenar resultados
+                  <select value={ordenar} onChange={(event) => setOrdenar(event.target.value as OrdenacaoSalarios)} className="ml-2 min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="relevancia">Maior aderência ao termo</option><option value="salario_asc">Menor salário de referência</option><option value="salario_desc">Maior salário de referência</option><option value="ufs_desc">Mais UFs disponíveis</option><option value="amplitude_asc">Menor variação salarial</option><option value="titulo">Título em ordem alfabética</option></select>
+                </label>
+              </div>
+            </div> : null}
           </form>
         </CardContent>
       </Card>
@@ -432,8 +549,13 @@ export function SalariosSearch() {
             ) : null}
           </div>
 
+          {comparacao.length > 0 ? <Card className="border-cyan-300 dark:border-cyan-800">
+            <CardHeader className="flex flex-row items-start justify-between gap-3"><div><CardTitle>Comparação de ocupações ({comparacao.length}/5)</CardTitle><CardDescription>Compare as referências antes de decidir qual posto vai para a grade.</CardDescription></div><Button type="button" size="sm" variant="ghost" onClick={() => setComparacao([])}><X className="mr-1 h-4 w-4" />Limpar</Button></CardHeader>
+            <CardContent className="overflow-x-auto"><div className="min-w-[760px] overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800"><table className="w-full text-sm"><thead className="bg-slate-100 dark:bg-slate-900"><tr><th className="p-3 text-left">Critério</th>{comparacao.map((item) => <th key={item.cbo} className="min-w-[180px] p-3 text-left">{item.cbo} — {item.titulo}</th>)}</tr></thead><tbody>{linhasComparacao.map(([label, valor]) => <tr key={label} className="border-t border-slate-200 dark:border-slate-800"><th className="whitespace-nowrap p-3 text-left font-medium">{label}</th>{comparacao.map((item) => <td key={item.cbo} className="p-3">{label === 'UFs consideradas' ? `${valor(item)} UFs` : formatarMoeda(valor(item) as number | null)}</td>)}</tr>)}<tr className="border-t border-slate-200 dark:border-slate-800"><th className="p-3 text-left font-medium">Ação</th>{comparacao.map((item) => <td key={item.cbo} className="p-3"><Button type="button" size="sm" onClick={() => adicionarNaGrade(item)}><Plus className="mr-1 h-4 w-4" />Adicionar</Button></td>)}</tr></tbody></table></div></CardContent>
+          </Card> : null}
+
           {data.items.map((item) => (
-            <CardSalario key={item.cbo} item={item} aplicarInpc={aplicarInpc} adicionar={adicionarNaGrade} />
+            <CardSalario key={item.cbo} item={item} aplicarInpc={aplicarInpc} adicionar={adicionarNaGrade} comparar={alternarComparacao} selecionado={comparacao.some((linha) => linha.cbo === item.cbo)} />
           ))}
 
           {grade.length ? <Card>

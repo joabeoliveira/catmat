@@ -10,9 +10,12 @@ import {
   type SalarioBuscaParams,
   type SalarioBuscaResponse,
   type SalarioDetalheResponse,
+  type SalarioCard,
+  type SalarioHierarquiaOpcao,
   type SalarioSugestao,
   type SalarioUf,
   type SalarioPercentis,
+  type ReferenciaSalarial,
 } from './salarios.types'
 
 interface CboRow {
@@ -26,6 +29,7 @@ interface CboRow {
 }
 
 interface PercentilRow extends SalarioPercentis { cbo: number; ano: number }
+interface SinonimoRow { cbo: number; sinonimo: string }
 
 interface UfRow {
   uf: string
@@ -46,14 +50,6 @@ interface SalarioLinhaRow {
   familiaTitulo?: string | null
   perfilOcupacional?: string | null
   fonte?: string | null
-}
-
-interface CountRow {
-  total: bigint | number
-}
-
-function asCount(value: bigint | number): number {
-  return typeof value === 'bigint' ? Number(value) : value
 }
 
 function pushParam(params: unknown[], value: unknown) {
@@ -82,6 +78,26 @@ function buildWhere(termo: string, filtros: SalarioBuscaParams['filtros'], param
     clauses.push(`("uf" = ${pushParam(params, filtros.uf.toUpperCase())})`)
   }
 
+  if (filtros?.grandeGrupo) {
+    clauses.push(`("grandeGrupoTitulo" = ${pushParam(params, filtros.grandeGrupo)})`)
+  }
+  if (filtros?.subgrupoPrincipal) {
+    clauses.push(`("subgrupoPrincipalTitulo" = ${pushParam(params, filtros.subgrupoPrincipal)})`)
+  }
+  if (filtros?.familia) {
+    clauses.push(`("familiaTitulo" = ${pushParam(params, filtros.familia)})`)
+  }
+
+  const campoBusca = `concat_ws(' ', "titulo", "grandeGrupoTitulo", "subgrupoPrincipalTitulo", "familiaTitulo", "perfilOcupacional")`
+  for (const palavra of separarTermos(filtros?.palavrasObrigatorias)) {
+    const p = pushParam(params, palavra)
+    clauses.push(`(immutable_unaccent(lower(${campoBusca})) LIKE '%' || immutable_unaccent(lower(${p})) || '%' OR EXISTS (SELECT 1 FROM "SalarioCboSinonimo" s WHERE s."cbo"="SalarioCbo"."cbo" AND immutable_unaccent(lower(s."sinonimo")) LIKE '%' || immutable_unaccent(lower(${p})) || '%'))`)
+  }
+  for (const palavra of separarTermos(filtros?.palavrasExcluidas)) {
+    const p = pushParam(params, palavra)
+    clauses.push(`NOT (immutable_unaccent(lower(${campoBusca})) LIKE '%' || immutable_unaccent(lower(${p})) || '%' OR EXISTS (SELECT 1 FROM "SalarioCboSinonimo" s WHERE s."cbo"="SalarioCbo"."cbo" AND immutable_unaccent(lower(s."sinonimo")) LIKE '%' || immutable_unaccent(lower(${p})) || '%'))`)
+  }
+
   return clauses.length ? clauses.join(' AND ') : 'TRUE'
 }
 
@@ -101,6 +117,50 @@ function calcularEstatisticas(valores: number[]): EstatisticasSalario {
     maior: positivos[positivos.length - 1],
     ufCount: positivos.length,
   }
+}
+
+function separarTermos(valor?: string): string[] {
+  return (valor || '').split(/[;,\n]+/).map((item) => item.trim()).filter(Boolean).slice(0, 10)
+}
+
+function normalizar(valor?: string | null) {
+  return (valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
+function valorReferencia(item: SalarioCard, referencia: ReferenciaSalarial): number | null {
+  if (referencia === 'p25') return item.percentis?.p25 ?? null
+  if (referencia === 'p75') return item.percentis?.p75 ?? null
+  if (referencia === 'media') return item.estatisticas.media
+  return item.estatisticas.mediana
+}
+
+function enriquecerCard(item: SalarioCard, termo: string): SalarioCard {
+  const q = normalizar(termo)
+  const titulo = normalizar(item.titulo)
+  const sinonimo = item.sinonimos?.find((valor) => normalizar(valor).includes(q))
+  const hierarquia = normalizar([item.hierarquia?.grandeGrupo, item.hierarquia?.subgrupoPrincipal, item.hierarquia?.familia].filter(Boolean).join(' '))
+  const perfil = normalizar(item.hierarquia?.perfilOcupacional)
+  let correspondencia: NonNullable<SalarioCard['correspondencia']>
+
+  if (!q) correspondencia = { tipo: 'geral', descricao: 'Resultado da base CBO', aderencia: 100 }
+  else if (String(item.cbo).startsWith(q)) correspondencia = { tipo: 'codigo', descricao: 'Código CBO correspondente', aderencia: String(item.cbo) === q ? 100 : 95 }
+  else if (titulo === q) correspondencia = { tipo: 'titulo', descricao: 'Título oficial exato', aderencia: 100 }
+  else if (titulo.startsWith(q)) correspondencia = { tipo: 'titulo', descricao: 'Título oficial iniciado pelo termo', aderencia: 92 }
+  else if (titulo.includes(q)) correspondencia = { tipo: 'titulo', descricao: 'Termo encontrado no título oficial', aderencia: 84 }
+  else if (sinonimo) correspondencia = { tipo: 'sinonimo', descricao: 'Encontrado por título relacionado', termoEncontrado: sinonimo, aderencia: normalizar(sinonimo).startsWith(q) ? 78 : 70 }
+  else if (hierarquia.includes(q)) correspondencia = { tipo: 'hierarquia', descricao: 'Encontrado na família ou grupo ocupacional', aderencia: 60 }
+  else if (perfil.includes(q)) correspondencia = { tipo: 'perfil', descricao: 'Encontrado nas atividades do perfil', aderencia: 50 }
+  else correspondencia = { tipo: 'geral', descricao: 'Correspondência aproximada', aderencia: 35 }
+
+  const amplitude = item.estatisticas.menor != null && item.estatisticas.maior != null
+    ? item.estatisticas.maior - item.estatisticas.menor
+    : null
+  const amplitudePercentual = amplitude != null && item.estatisticas.mediana
+    ? amplitude / item.estatisticas.mediana
+    : null
+  const confianca = item.ufCount >= 20 ? 'alta' : item.ufCount >= 10 ? 'media' : 'baixa'
+
+  return { ...item, correspondencia, qualidade: { confianca, amplitude, amplitudePercentual } }
 }
 
 function corrigirPercentis(percentis: SalarioPercentis | undefined, fator: number): SalarioPercentis | undefined {
@@ -139,32 +199,14 @@ export class SalariosService {
       : 2026
     const aplicarInpc = Boolean(params.filtros?.aplicarInpc)
     const uf = params.filtros?.uf?.trim().toUpperCase()
+    const filtros = { ...params.filtros, uf, ano, aplicarInpc }
 
     const pagina = Math.max(1, params.pagina || 1)
     const limite = Math.min(50, Math.max(1, params.limite || 20))
     const offset = (pagina - 1) * limite
 
     const whereParams: unknown[] = []
-    const whereSql = buildWhere(termo, { uf, ano, aplicarInpc }, whereParams)
-    const orderSql = termo
-      ? `MIN(CASE
-          WHEN immutable_unaccent(lower("titulo")) = immutable_unaccent(lower($1)) THEN 0
-          WHEN immutable_unaccent(lower("titulo")) LIKE immutable_unaccent(lower($1)) || '%' THEN 1
-          WHEN immutable_unaccent(lower("titulo")) LIKE '%' || immutable_unaccent(lower($1)) || '%' THEN 2
-          WHEN EXISTS (
-            SELECT 1 FROM "SalarioCboSinonimo" s
-            WHERE s."cbo" = "SalarioCbo"."cbo"
-              AND immutable_unaccent(lower(s."sinonimo")) LIKE immutable_unaccent(lower($1)) || '%'
-          ) THEN 3
-          WHEN EXISTS (
-            SELECT 1 FROM "SalarioCboSinonimo" s
-            WHERE s."cbo" = "SalarioCbo"."cbo"
-              AND immutable_unaccent(lower(s."sinonimo")) LIKE '%' || immutable_unaccent(lower($1)) || '%'
-          ) THEN 4
-          WHEN immutable_unaccent(lower(coalesce("perfilOcupacional", ''))) LIKE '%' || immutable_unaccent(lower($1)) || '%' THEN 5
-          ELSE 6
-        END), max("titulo") ASC`
-      : 'max("titulo") ASC'
+    const whereSql = buildWhere(termo, filtros, whereParams)
 
     const cboRows = await prisma.$queryRawUnsafe<CboRow[]>(
       `
@@ -172,29 +214,36 @@ export class SalariosService {
         FROM "SalarioCbo"
         WHERE ${whereSql}
         GROUP BY "cbo"
-        ORDER BY ${orderSql}
-        LIMIT ${pushParam(whereParams, limite)}
-        OFFSET ${pushParam(whereParams, offset)}
+        LIMIT 3000
       `,
       ...whereParams,
     )
-
-    const baseParams = whereParams.slice(0, -2)
-    const countRows = await prisma.$queryRawUnsafe<CountRow[]>(
-      `
-        SELECT count(*) AS total
-        FROM (SELECT "cbo" FROM "SalarioCbo" WHERE ${whereSql} GROUP BY "cbo") AS sub
-      `,
-      ...baseParams,
-    )
-    const total = asCount(countRows[0]?.total ?? 0)
 
     let fatorInpc = 1
     if (aplicarInpc) {
       fatorInpc = await getFatorInpc(ano)
     }
 
-    const items = await this.montarCards(cboRows, { ano, uf, aplicarInpc, fatorInpc })
+    const referencia = filtros.referenciaSalarial || 'mediana'
+    let encontrados = (await this.montarCards(cboRows, { ano, uf, aplicarInpc, fatorInpc }))
+      .map((item) => enriquecerCard(item, termo))
+
+    if (filtros.minimoUfs) encontrados = encontrados.filter((item) => item.ufCount >= filtros.minimoUfs!)
+    if (typeof filtros.salarioMinimo === 'number') encontrados = encontrados.filter((item) => (valorReferencia(item, referencia) ?? -Infinity) >= filtros.salarioMinimo!)
+    if (typeof filtros.salarioMaximo === 'number') encontrados = encontrados.filter((item) => (valorReferencia(item, referencia) ?? Infinity) <= filtros.salarioMaximo!)
+
+    const ordenarPor = filtros.ordenarPor || 'relevancia'
+    encontrados.sort((a, b) => {
+      if (ordenarPor === 'salario_asc') return (valorReferencia(a, referencia) ?? Infinity) - (valorReferencia(b, referencia) ?? Infinity)
+      if (ordenarPor === 'salario_desc') return (valorReferencia(b, referencia) ?? -Infinity) - (valorReferencia(a, referencia) ?? -Infinity)
+      if (ordenarPor === 'ufs_desc') return b.ufCount - a.ufCount || a.titulo.localeCompare(b.titulo, 'pt-BR')
+      if (ordenarPor === 'amplitude_asc') return (a.qualidade?.amplitudePercentual ?? Infinity) - (b.qualidade?.amplitudePercentual ?? Infinity)
+      if (ordenarPor === 'titulo') return a.titulo.localeCompare(b.titulo, 'pt-BR')
+      return (b.correspondencia?.aderencia ?? 0) - (a.correspondencia?.aderencia ?? 0) || b.ufCount - a.ufCount || a.titulo.localeCompare(b.titulo, 'pt-BR')
+    })
+
+    const total = encontrados.length
+    const items = encontrados.slice(offset, offset + limite)
 
     return {
       items,
@@ -238,7 +287,25 @@ export class SalariosService {
       porCbo.set(linha.cbo, lista)
     }
 
-    return Promise.all(cboRows.map(async (c) => {
+    const extraParams: unknown[] = []
+    const extraInSql = cboRows.map((row) => pushParam(extraParams, row.cbo)).join(', ')
+    const anoParam = pushParam(extraParams, ano)
+    const percentilRows = await prisma.$queryRawUnsafe<PercentilRow[]>(
+      `SELECT "cbo", "ano", "observacoes", "p10", "p25", "p50", "p75", "p90", "media", "minimo", "maximo" FROM "SalarioCboPercentil" WHERE "cbo" IN (${extraInSql}) AND "ano"=${anoParam}`,
+      ...extraParams,
+    )
+    const percentisPorCbo = new Map(percentilRows.map((row) => [row.cbo, row]))
+
+    const sinonimoParams: unknown[] = []
+    const sinonimoInSql = cboRows.map((row) => pushParam(sinonimoParams, row.cbo)).join(', ')
+    const sinonimoRows = await prisma.$queryRawUnsafe<SinonimoRow[]>(
+      `SELECT "cbo", "sinonimo" FROM "SalarioCboSinonimo" WHERE "cbo" IN (${sinonimoInSql}) ORDER BY "sinonimo"`,
+      ...sinonimoParams,
+    )
+    const sinonimosPorCbo = new Map<number, string[]>()
+    for (const row of sinonimoRows) sinonimosPorCbo.set(row.cbo, [...(sinonimosPorCbo.get(row.cbo) || []), row.sinonimo])
+
+    return cboRows.map((c) => {
       const valores = (porCbo.get(c.cbo) ?? [])
         .map((linha) => linha[coluna])
         .filter((v): v is number => typeof v === 'number' && v > 0)
@@ -247,8 +314,8 @@ export class SalariosService {
       const estatisticas = calcularEstatisticas(aplicarInpc ? corrigidos : valores)
       const estatisticasOriginal = aplicarInpc ? calcularEstatisticas(valores) : undefined
 
-      const percentis = corrigirPercentis(await this.buscarPercentis(c.cbo, ano), aplicarInpc ? fatorInpc : 1)
-      const sinonimos = await this.buscarSinonimos(c.cbo)
+      const percentis = corrigirPercentis(percentisPorCbo.get(c.cbo), aplicarInpc ? fatorInpc : 1)
+      const sinonimos = sinonimosPorCbo.get(c.cbo) || []
       return {
         cbo: c.cbo,
         titulo: c.titulo,
@@ -259,12 +326,7 @@ export class SalariosService {
         percentis,
         sinonimos,
       }
-    }))
-  }
-
-  private async buscarPercentis(cbo: number, ano: AnoSalario): Promise<SalarioPercentis | undefined> {
-    const rows = await prisma.$queryRawUnsafe<SalarioPercentis[]>(`SELECT "observacoes", "p10", "p25", "p50", "p75", "p90", "media", "minimo", "maximo" FROM "SalarioCboPercentil" WHERE "cbo"=$1 AND "ano"=$2`, cbo, ano)
-    return rows[0]
+    })
   }
 
   private async buscarSinonimos(cbo: number): Promise<string[]> {
@@ -306,6 +368,13 @@ export class SalariosService {
       `,
     )
     return rows.map((r: UfRow) => ({ uf: r.uf, estado: r.estado }))
+  }
+
+  /** Hierarquia oficial disponível para os filtros ocupacionais. */
+  async listarHierarquia(): Promise<SalarioHierarquiaOpcao[]> {
+    return prisma.$queryRawUnsafe<SalarioHierarquiaOpcao[]>(
+      `SELECT DISTINCT "grandeGrupoTitulo" AS "grandeGrupo", "subgrupoPrincipalTitulo" AS "subgrupoPrincipal", "familiaTitulo" AS "familia" FROM "SalarioCbo" WHERE "grandeGrupoTitulo" IS NOT NULL AND "subgrupoPrincipalTitulo" IS NOT NULL AND "familiaTitulo" IS NOT NULL ORDER BY 1, 2, 3`,
+    )
   }
 
   /** Detalhe de um CBO com os valores por UF. */

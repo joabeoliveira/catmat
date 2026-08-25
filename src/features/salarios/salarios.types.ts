@@ -8,7 +8,22 @@ export interface SalarioFiltros {
   ano?: AnoSalario
   /** Aplica a correção monetária (INPC) até o mês atual. */
   aplicarInpc?: boolean
+  grandeGrupo?: string
+  subgrupoPrincipal?: string
+  familia?: string
+  palavrasObrigatorias?: string
+  palavrasExcluidas?: string
+  salarioMinimo?: number
+  salarioMaximo?: number
+  minimoUfs?: number
+  referenciaSalarial?: ReferenciaSalarial
+  ordenarPor?: OrdenacaoSalarios
 }
+
+export type ReferenciaSalarial = 'mediana' | 'media' | 'p25' | 'p75'
+export type OrdenacaoSalarios = 'relevancia' | 'salario_asc' | 'salario_desc' | 'ufs_desc' | 'amplitude_asc' | 'titulo'
+export type TipoCorrespondencia = 'codigo' | 'titulo' | 'sinonimo' | 'hierarquia' | 'perfil' | 'geral'
+export type NivelConfianca = 'alta' | 'media' | 'baixa'
 
 export interface SalarioBuscaParams {
   termo: string
@@ -37,6 +52,17 @@ export interface SalarioCard {
   hierarquia?: SalarioHierarquia
   percentis?: SalarioPercentis
   sinonimos?: string[]
+  correspondencia?: {
+    tipo: TipoCorrespondencia
+    descricao: string
+    termoEncontrado?: string
+    aderencia: number
+  }
+  qualidade?: {
+    confianca: NivelConfianca
+    amplitude: number | null
+    amplitudePercentual: number | null
+  }
 }
 
 export type CriterioSalarioGrade = 'p25' | 'mediana' | 'media' | 'p75' | 'personalizado'
@@ -108,4 +134,10 @@ export interface SalarioDetalheResponse {
   sinonimos: string[]
   historico: Array<{ ano: number; uf: string; estado: string; salario: number }>
   percentis: Array<SalarioPercentis & { ano: number }>
+}
+
+export interface SalarioHierarquiaOpcao {
+  grandeGrupo: string
+  subgrupoPrincipal: string
+  familia: string
 }

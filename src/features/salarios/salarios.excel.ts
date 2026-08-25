@@ -12,6 +12,16 @@ export interface DadosExportSalarios {
   ano: number
   aplicarInpc: boolean
   fatorInpc?: number
+  grandeGrupo?: string
+  subgrupoPrincipal?: string
+  familia?: string
+  palavrasObrigatorias?: string
+  palavrasExcluidas?: string
+  salarioMinimo?: number
+  salarioMaximo?: number
+  minimoUfs?: number
+  referenciaSalarial?: 'mediana' | 'media' | 'p25' | 'p75'
+  ordenarPor?: 'relevancia' | 'salario_asc' | 'salario_desc' | 'ufs_desc' | 'amplitude_asc' | 'titulo'
   /** Quantidade máxima de ocupações exportadas (default 200). */
   limite?: number
   grade?: SalarioGradeItem[]
