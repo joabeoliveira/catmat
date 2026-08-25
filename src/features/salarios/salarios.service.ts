@@ -1,0 +1,287 @@
+// src/features/salarios/salarios.service.ts
+// Busca de salários por ocupação (CBO) com estatísticas nacionais (entre UFs)
+// e correção monetária opcional pelo INPC. Padrão do projeto: $queryRawUnsafe.
+import { prisma } from '@/lib/db'
+import { getFatorInpc } from './inpc.service'
+import {
+  ANOS_SALARIOS,
+  type AnoSalario,
+  type EstatisticasSalario,
+  type SalarioBuscaParams,
+  type SalarioBuscaResponse,
+  type SalarioDetalheResponse,
+  type SalarioSugestao,
+  type SalarioUf,
+} from './salarios.types'
+
+interface CboRow {
+  cbo: number
+  titulo: string
+}
+
+interface UfRow {
+  uf: string
+  estado: string
+}
+
+interface SalarioLinhaRow {
+  uf: string
+  estado: string
+  cbo: number
+  titulo: string
+  salario2023: number | null
+  salario2024: number | null
+  salario2025: number | null
+  salario2026: number | null
+}
+
+interface CountRow {
+  total: bigint | number
+}
+
+function asCount(value: bigint | number): number {
+  return typeof value === 'bigint' ? Number(value) : value
+}
+
+function pushParam(params: unknown[], value: unknown) {
+  params.push(value)
+  return `$${params.length}`
+}
+
+function buildWhere(termo: string, filtros: SalarioBuscaParams['filtros'], params: unknown[]) {
+  const clauses: string[] = []
+
+  if (termo) {
+    const partes: string[] = []
+    const q = pushParam(params, termo)
+    partes.push(`("busca_tsv" @@ websearch_to_tsquery('portuguese', ${q}))`)
+    partes.push(`(similarity(immutable_unaccent("titulo"), immutable_unaccent(${q})) > 0.08)`)
+    if (/^\d+$/.test(termo)) {
+      partes.push(`("cbo"::text LIKE ${pushParam(params, `${termo}%`)})`)
+    }
+    clauses.push(`(${partes.join(' OR ')})`)
+  }
+
+  if (filtros?.uf) {
+    clauses.push(`("uf" = ${pushParam(params, filtros.uf.toUpperCase())})`)
+  }
+
+  return clauses.length ? clauses.join(' AND ') : 'TRUE'
+}
+
+function calcularEstatisticas(valores: number[]): EstatisticasSalario {
+  const positivos = [...valores].filter((v) => Number.isFinite(v) && v > 0).sort((a, b) => a - b)
+  if (positivos.length === 0) {
+    return { menor: null, media: null, mediana: null, maior: null, ufCount: 0 }
+  }
+  const soma = positivos.reduce((acc, v) => acc + v, 0)
+  const meio = Math.floor(positivos.length / 2)
+  const mediana =
+    positivos.length % 2 === 0 ? (positivos[meio - 1] + positivos[meio]) / 2 : positivos[meio]
+  return {
+    menor: positivos[0],
+    media: soma / positivos.length,
+    mediana,
+    maior: positivos[positivos.length - 1],
+    ufCount: positivos.length,
+  }
+}
+
+type ColunaSalario = 'salario2023' | 'salario2024' | 'salario2025' | 'salario2026'
+
+function colunaDoAno(ano: AnoSalario): ColunaSalario {
+  if (!ANOS_SALARIOS.includes(ano)) return 'salario2026'
+  return `salario${ano}` as ColunaSalario
+}
+
+export class SalariosService {
+  /**
+   * Busca ocupações (CBO) por termo, com filtros de UF e ano, calculando as
+   * estatísticas nacionais (menor/média/mediana/maior entre as UFs) e aplicando
+   * correção INPC quando solicitado.
+   */
+  async buscar(params: SalarioBuscaParams): Promise<SalarioBuscaResponse> {
+    const termo = params.termo.trim()
+    const ano: AnoSalario = ANOS_SALARIOS.includes((params.filtros?.ano ?? 2026) as AnoSalario)
+      ? (params.filtros?.ano as AnoSalario)
+      : 2026
+    const aplicarInpc = Boolean(params.filtros?.aplicarInpc)
+    const uf = params.filtros?.uf?.trim().toUpperCase()
+
+    const pagina = Math.max(1, params.pagina || 1)
+    const limite = Math.min(50, Math.max(1, params.limite || 20))
+    const offset = (pagina - 1) * limite
+
+    const whereParams: unknown[] = []
+    const whereSql = buildWhere(termo, { uf, ano, aplicarInpc }, whereParams)
+
+    const cboRows = await prisma.$queryRawUnsafe<CboRow[]>(
+      `
+        SELECT "cbo", max("titulo") AS titulo
+        FROM "SalarioCbo"
+        WHERE ${whereSql}
+        GROUP BY "cbo"
+        ORDER BY max("titulo") ASC
+        LIMIT ${pushParam(whereParams, limite)}
+        OFFSET ${pushParam(whereParams, offset)}
+      `,
+      ...whereParams,
+    )
+
+    const baseParams = whereParams.slice(0, -2)
+    const countRows = await prisma.$queryRawUnsafe<CountRow[]>(
+      `
+        SELECT count(*) AS total
+        FROM (SELECT "cbo" FROM "SalarioCbo" WHERE ${whereSql} GROUP BY "cbo") AS sub
+      `,
+      ...baseParams,
+    )
+    const total = asCount(countRows[0]?.total ?? 0)
+
+    let fatorInpc = 1
+    if (aplicarInpc) {
+      fatorInpc = await getFatorInpc(ano)
+    }
+
+    const items = await this.montarCards(cboRows, { ano, uf, aplicarInpc, fatorInpc })
+
+    return {
+      items,
+      total,
+      pagina,
+      totalPaginas: Math.ceil(total / limite),
+      ano,
+      aplicarInpc,
+      fatorInpc,
+    }
+  }
+
+  private async montarCards(
+    cboRows: CboRow[],
+    opts: { ano: AnoSalario; uf?: string; aplicarInpc: boolean; fatorInpc: number },
+  ) {
+    if (cboRows.length === 0) return []
+    const { ano, uf, aplicarInpc, fatorInpc } = opts
+    const coluna = colunaDoAno(ano)
+
+    const cboParams: unknown[] = []
+    const inSql = cboRows.map((row) => pushParam(cboParams, row.cbo)).join(', ')
+    let whereExtra = ''
+    if (uf) {
+      whereExtra = ` AND "uf" = ${pushParam(cboParams, uf)}`
+    }
+
+    const linhas = await prisma.$queryRawUnsafe<SalarioLinhaRow[]>(
+      `
+        SELECT "uf", "estado", "cbo", "titulo", "salario2023", "salario2024", "salario2025", "salario2026"
+        FROM "SalarioCbo"
+        WHERE "cbo" IN (${inSql})${whereExtra}
+      `,
+      ...cboParams,
+    )
+
+    const porCbo = new Map<number, SalarioLinhaRow[]>()
+    for (const linha of linhas) {
+      const lista = porCbo.get(linha.cbo) ?? []
+      lista.push(linha)
+      porCbo.set(linha.cbo, lista)
+    }
+
+    return cboRows.map((c) => {
+      const valores = (porCbo.get(c.cbo) ?? [])
+        .map((linha) => linha[coluna])
+        .filter((v): v is number => typeof v === 'number' && v > 0)
+
+      const corrigidos = valores.map((v) => v * fatorInpc)
+      const estatisticas = calcularEstatisticas(aplicarInpc ? corrigidos : valores)
+      const estatisticasOriginal = aplicarInpc ? calcularEstatisticas(valores) : undefined
+
+      return {
+        cbo: c.cbo,
+        titulo: c.titulo,
+        ufCount: valores.length,
+        estatisticas,
+        estatisticasOriginal,
+      }
+    })
+  }
+
+  /** Sugestões para autocomplete (título ou código CBO). */
+  async sugestoes(termo: string, limite = 8): Promise<SalarioSugestao[]> {
+    const q = termo.trim()
+    if (q.length < 2) return []
+    const rows = await prisma.$queryRawUnsafe<CboRow[]>(
+      `
+        SELECT "cbo", max("titulo") AS titulo
+        FROM "SalarioCbo"
+        WHERE ("busca_tsv" @@ websearch_to_tsquery('portuguese', $1))
+           OR (similarity(immutable_unaccent("titulo"), immutable_unaccent($1)) > 0.15)
+           OR ("cbo"::text LIKE $2)
+        GROUP BY "cbo"
+        ORDER BY max("titulo") ASC
+        LIMIT $3
+      `,
+      q,
+      `${q}%`,
+      limite,
+    )
+    return rows.map((r: CboRow) => ({ cbo: r.cbo, titulo: r.titulo }))
+  }
+
+  /** Lista de UFs disponíveis (para o filtro). */
+  async listarUfs(): Promise<SalarioUf[]> {
+    const rows = await prisma.$queryRawUnsafe<UfRow[]>(
+      `
+        SELECT "uf", max("estado") AS estado
+        FROM "SalarioCbo"
+        GROUP BY "uf"
+        ORDER BY "uf" ASC
+      `,
+    )
+    return rows.map((r: UfRow) => ({ uf: r.uf, estado: r.estado }))
+  }
+
+  /** Detalhe de um CBO com os valores por UF. */
+  async buscarDetalhe(
+    cbo: number,
+    filtros: { ano?: AnoSalario; uf?: string; aplicarInpc?: boolean } = {},
+  ): Promise<SalarioDetalheResponse> {
+    if (!Number.isInteger(cbo) || cbo <= 0) throw new Error('Código CBO inválido.')
+    const ano: AnoSalario = ANOS_SALARIOS.includes((filtros.ano ?? 2026) as AnoSalario)
+      ? (filtros.ano as AnoSalario)
+      : 2026
+    const aplicarInpc = Boolean(filtros.aplicarInpc)
+    const uf = filtros.uf?.trim().toUpperCase()
+    const coluna = colunaDoAno(ano)
+
+    const linhas = await prisma.salarioCbo.findMany({
+      where: { cbo, ...(uf ? { uf } : {}) },
+      orderBy: { uf: 'asc' },
+    })
+    if (linhas.length === 0) throw new Error('CBO não encontrado.')
+
+    let fatorInpc = 1
+    if (aplicarInpc) fatorInpc = await getFatorInpc(ano)
+
+    const valores = linhas
+      .map((linha: SalarioLinhaRow) => linha[coluna])
+      .filter((v: number | null): v is number => typeof v === 'number' && v > 0)
+    const corrigidos = valores.map((v: number) => v * fatorInpc)
+
+    const valoresPorUf = linhas.map((linha: SalarioLinhaRow) => ({
+      uf: linha.uf,
+      estado: linha.estado,
+      salario: linha[coluna] != null ? linha[coluna]! * (aplicarInpc ? fatorInpc : 1) : null,
+    }))
+
+    return {
+      cbo,
+      titulo: linhas[0].titulo,
+      ano,
+      aplicarInpc,
+      fatorInpc,
+      estatisticas: calcularEstatisticas(aplicarInpc ? corrigidos : valores),
+      valoresPorUf,
+    }
+  }
+}
