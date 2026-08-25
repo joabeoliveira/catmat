@@ -12,12 +12,20 @@ import {
   type SalarioDetalheResponse,
   type SalarioSugestao,
   type SalarioUf,
+  type SalarioPercentis,
 } from './salarios.types'
 
 interface CboRow {
   cbo: number
   titulo: string
+  grandeGrupoTitulo?: string | null
+  subgrupoPrincipalTitulo?: string | null
+  familiaTitulo?: string | null
+  perfilOcupacional?: string | null
+  fonte?: string | null
 }
+
+interface PercentilRow extends SalarioPercentis { cbo: number; ano: number }
 
 interface UfRow {
   uf: string
@@ -33,6 +41,11 @@ interface SalarioLinhaRow {
   salario2024: number | null
   salario2025: number | null
   salario2026: number | null
+  grandeGrupoTitulo?: string | null
+  subgrupoPrincipalTitulo?: string | null
+  familiaTitulo?: string | null
+  perfilOcupacional?: string | null
+  fonte?: string | null
 }
 
 interface CountRow {
@@ -56,6 +69,8 @@ function buildWhere(termo: string, filtros: SalarioBuscaParams['filtros'], param
     const q = pushParam(params, termo)
     partes.push(`("busca_tsv" @@ websearch_to_tsquery('portuguese', ${q}))`)
     partes.push(`(similarity(immutable_unaccent("titulo"), immutable_unaccent(${q})) > 0.08)`)
+    partes.push(`EXISTS (SELECT 1 FROM "SalarioCboSinonimo" s WHERE s."cbo" = "SalarioCbo"."cbo" AND (s."sinonimoNormalizado" LIKE '%' || immutable_unaccent(lower(${q})) || '%' OR similarity(immutable_unaccent(s."sinonimo"), immutable_unaccent(${q})) > 0.12))`)
+    partes.push(`immutable_unaccent(coalesce("perfilOcupacional", '')) ILIKE '%' || immutable_unaccent(${q}) || '%'`)
     if (/^\d+$/.test(termo)) {
       partes.push(`("cbo"::text LIKE ${pushParam(params, `${termo}%`)})`)
     }
@@ -117,7 +132,7 @@ export class SalariosService {
 
     const cboRows = await prisma.$queryRawUnsafe<CboRow[]>(
       `
-        SELECT "cbo", max("titulo") AS titulo
+        SELECT "cbo", max("titulo") AS titulo, max("grandeGrupoTitulo") AS "grandeGrupoTitulo", max("subgrupoPrincipalTitulo") AS "subgrupoPrincipalTitulo", max("familiaTitulo") AS "familiaTitulo", max("perfilOcupacional") AS "perfilOcupacional", max("fonte") AS fonte
         FROM "SalarioCbo"
         WHERE ${whereSql}
         GROUP BY "cbo"
@@ -187,7 +202,7 @@ export class SalariosService {
       porCbo.set(linha.cbo, lista)
     }
 
-    return cboRows.map((c) => {
+    return Promise.all(cboRows.map(async (c) => {
       const valores = (porCbo.get(c.cbo) ?? [])
         .map((linha) => linha[coluna])
         .filter((v): v is number => typeof v === 'number' && v > 0)
@@ -196,14 +211,29 @@ export class SalariosService {
       const estatisticas = calcularEstatisticas(aplicarInpc ? corrigidos : valores)
       const estatisticasOriginal = aplicarInpc ? calcularEstatisticas(valores) : undefined
 
+      const percentis = await this.buscarPercentis(c.cbo, ano)
+      const sinonimos = await this.buscarSinonimos(c.cbo)
       return {
         cbo: c.cbo,
         titulo: c.titulo,
         ufCount: valores.length,
         estatisticas,
         estatisticasOriginal,
+        hierarquia: { grandeGrupo: c.grandeGrupoTitulo, subgrupoPrincipal: c.subgrupoPrincipalTitulo, familia: c.familiaTitulo, perfilOcupacional: c.perfilOcupacional, fonte: c.fonte },
+        percentis,
+        sinonimos,
       }
-    })
+    }))
+  }
+
+  private async buscarPercentis(cbo: number, ano: AnoSalario): Promise<SalarioPercentis | undefined> {
+    const rows = await prisma.$queryRawUnsafe<SalarioPercentis[]>(`SELECT "observacoes", "p10", "p25", "p50", "p75", "p90", "media", "minimo", "maximo" FROM "SalarioCboPercentil" WHERE "cbo"=$1 AND "ano"=$2`, cbo, ano)
+    return rows[0]
+  }
+
+  private async buscarSinonimos(cbo: number): Promise<string[]> {
+    const rows = await prisma.$queryRawUnsafe<{ sinonimo: string }[]>(`SELECT "sinonimo" FROM "SalarioCboSinonimo" WHERE "cbo"=$1 ORDER BY "sinonimo"`, cbo)
+    return rows.map((row) => row.sinonimo)
   }
 
   /** Sugestões para autocomplete (título ou código CBO). */
@@ -216,6 +246,7 @@ export class SalariosService {
         FROM "SalarioCbo"
         WHERE ("busca_tsv" @@ websearch_to_tsquery('portuguese', $1))
            OR (similarity(immutable_unaccent("titulo"), immutable_unaccent($1)) > 0.15)
+           OR EXISTS (SELECT 1 FROM "SalarioCboSinonimo" s WHERE s."cbo" = "SalarioCbo"."cbo" AND similarity(immutable_unaccent(s."sinonimo"), immutable_unaccent($1)) > 0.12)
            OR ("cbo"::text LIKE $2)
         GROUP BY "cbo"
         ORDER BY max("titulo") ASC
@@ -254,10 +285,7 @@ export class SalariosService {
     const uf = filtros.uf?.trim().toUpperCase()
     const coluna = colunaDoAno(ano)
 
-    const linhas = await prisma.salarioCbo.findMany({
-      where: { cbo, ...(uf ? { uf } : {}) },
-      orderBy: { uf: 'asc' },
-    })
+    const linhas = await prisma.$queryRawUnsafe<SalarioLinhaRow[]>(`SELECT "uf", "estado", "cbo", "titulo", "salario2023", "salario2024", "salario2025", "salario2026", "grandeGrupoTitulo", "subgrupoPrincipalTitulo", "familiaTitulo", "perfilOcupacional", "fonte" FROM "SalarioCbo" WHERE "cbo"=$1 ${uf ? 'AND "uf"=$2' : ''} ORDER BY "uf" ASC`, ...(uf ? [cbo, uf] : [cbo]))
     if (linhas.length === 0) throw new Error('CBO não encontrado.')
 
     let fatorInpc = 1
@@ -274,6 +302,8 @@ export class SalariosService {
       salario: linha[coluna] != null ? linha[coluna]! * (aplicarInpc ? fatorInpc : 1) : null,
     }))
 
+    const historico = await prisma.$queryRawUnsafe<Array<{ ano: number; uf: string; estado: string; salario: number }>>(`SELECT h."ano", h."uf", s."estado", h."salario" FROM "SalarioCboHistorico" h JOIN "SalarioCbo" s ON s."cbo"=h."cbo" AND s."uf"=h."uf" WHERE h."cbo"=$1 ${uf ? 'AND h."uf"=$2' : ''} ORDER BY h."ano", h."uf"`, ...(uf ? [cbo, uf] : [cbo]))
+    const percentilRows = await prisma.$queryRawUnsafe<Array<SalarioPercentis & { ano: number }>>(`SELECT "ano", "observacoes", "p10", "p25", "p50", "p75", "p90", "media", "minimo", "maximo" FROM "SalarioCboPercentil" WHERE "cbo"=$1 ORDER BY "ano"`, cbo)
     return {
       cbo,
       titulo: linhas[0].titulo,
@@ -282,6 +312,10 @@ export class SalariosService {
       fatorInpc,
       estatisticas: calcularEstatisticas(aplicarInpc ? corrigidos : valores),
       valoresPorUf,
+      hierarquia: { grandeGrupo: linhas[0].grandeGrupoTitulo, subgrupoPrincipal: linhas[0].subgrupoPrincipalTitulo, familia: linhas[0].familiaTitulo, perfilOcupacional: linhas[0].perfilOcupacional, fonte: linhas[0].fonte },
+      sinonimos: await this.buscarSinonimos(cbo),
+      historico,
+      percentis: percentilRows,
     }
   }
 }

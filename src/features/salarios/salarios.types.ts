@@ -34,6 +34,29 @@ export interface SalarioCard {
   estatisticas: EstatisticasSalario
   /** Presente quando aplicarInpc=true — estatísticas com os valores originais do CSV. */
   estatisticasOriginal?: EstatisticasSalario
+  hierarquia?: SalarioHierarquia
+  percentis?: SalarioPercentis
+  sinonimos?: string[]
+}
+
+export interface SalarioHierarquia {
+  grandeGrupo?: string | null
+  subgrupoPrincipal?: string | null
+  familia?: string | null
+  perfilOcupacional?: string | null
+  fonte?: string | null
+}
+
+export interface SalarioPercentis {
+  observacoes: number
+  p10: number | null
+  p25: number | null
+  p50: number | null
+  p75: number | null
+  p90: number | null
+  media: number | null
+  minimo: number | null
+  maximo: number | null
 }
 
 export interface SalarioBuscaResponse {
@@ -71,4 +94,8 @@ export interface SalarioDetalheResponse {
   fatorInpc: number
   estatisticas: EstatisticasSalario
   valoresPorUf: SalarioValorUf[]
+  hierarquia?: SalarioHierarquia
+  sinonimos: string[]
+  historico: Array<{ ano: number; uf: string; estado: string; salario: number }>
+  percentis: Array<SalarioPercentis & { ano: number }>
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Download, Search } from 'lucide-react'
+import { Download, Plus, Search, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -44,7 +44,7 @@ function Stat({ label, value, destaque }: { label: string; value: number | null;
   )
 }
 
-function CardSalario({ item, aplicarInpc }: { item: SalarioCard; aplicarInpc: boolean }) {
+function CardSalario({ item, aplicarInpc, adicionar }: { item: SalarioCard; aplicarInpc: boolean; adicionar: (item: SalarioCard) => void }) {
   return (
     <Card>
       <CardContent className="space-y-3 pt-6">
@@ -54,7 +54,13 @@ function CardSalario({ item, aplicarInpc }: { item: SalarioCard; aplicarInpc: bo
             {item.ufCount} UF{item.ufCount === 1 ? '' : 's'}
           </Badge>
         </div>
-        <p className="font-medium text-slate-900 dark:text-white">{item.titulo}</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-slate-900 dark:text-white">{item.titulo}</p>
+            {item.hierarquia?.familia || item.hierarquia?.grandeGrupo ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{[item.hierarquia.grandeGrupo, item.hierarquia.subgrupoPrincipal, item.hierarquia.familia].filter(Boolean).join(' · ')}</p> : null}
+          </div>
+          <Button type="button" size="sm" variant="outline" onClick={() => adicionar(item)}><Plus className="mr-1 h-4 w-4" />Adicionar à grade</Button>
+        </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Menor" value={item.estatisticas.menor} />
           <Stat label="Média" value={item.estatisticas.media} destaque />
@@ -67,6 +73,8 @@ function CardSalario({ item, aplicarInpc }: { item: SalarioCard; aplicarInpc: bo
             {formatarMoeda(item.estatisticasOriginal.mediana)}
           </p>
         ) : null}
+        {item.percentis ? <p className="text-xs text-slate-500 dark:text-slate-400">Percentis: p25 {formatarMoeda(item.percentis.p25)} · p50 {formatarMoeda(item.percentis.p50)} · p75 {formatarMoeda(item.percentis.p75)}</p> : null}
+        {item.sinonimos?.length ? <p className="text-xs text-cyan-700 dark:text-cyan-300">Sinônimos: {item.sinonimos.slice(0, 3).join(', ')}</p> : null}
       </CardContent>
     </Card>
   )
@@ -86,9 +94,29 @@ export function SalariosSearch() {
   const [error, setError] = useState<string | null>(null)
   const [pagina, setPagina] = useState(1)
   const [exportando, setExportando] = useState(false)
+  const [grade, setGrade] = useState<SalarioCard[]>([])
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const digitouRef = useRef(false)
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('catmat:grade-salarios')
+      if (saved) setGrade(JSON.parse(saved))
+    } catch { /* ignora armazenamento indisponível */ }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem('catmat:grade-salarios', JSON.stringify(grade))
+  }, [grade])
+
+  function adicionarNaGrade(item: SalarioCard) {
+    setGrade((atual) => atual.some((linha) => linha.cbo === item.cbo) ? atual : [...atual, item])
+  }
+
+  function removerDaGrade(cbo: number) {
+    setGrade((atual) => atual.filter((linha) => linha.cbo !== cbo))
+  }
 
   useEffect(() => {
     void fetch('/api/salarios/ufs')
@@ -195,7 +223,7 @@ export function SalariosSearch() {
       const resp = await fetch('/api/salarios/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ termo, uf, ano, aplicarInpc, limite: 200 }),
+        body: JSON.stringify({ termo, uf, ano, aplicarInpc, limite: 200, grade }),
       })
       if (!resp.ok) throw new Error('Falha ao gerar a planilha.')
       const blob = await resp.blob()
@@ -378,8 +406,15 @@ export function SalariosSearch() {
           </div>
 
           {data.items.map((item) => (
-            <CardSalario key={item.cbo} item={item} aplicarInpc={aplicarInpc} />
+            <CardSalario key={item.cbo} item={item} aplicarInpc={aplicarInpc} adicionar={adicionarNaGrade} />
           ))}
+
+          {grade.length ? <Card>
+            <CardHeader><CardTitle>Grade de postos ({grade.length})</CardTitle><CardDescription>Postos selecionados para revisão e exportação.</CardDescription></CardHeader>
+            <CardContent className="space-y-2">
+              {grade.map((linha) => <div key={linha.cbo} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800"><div className="min-w-0"><strong>{linha.cbo}</strong> · {linha.titulo}<div className="text-xs text-slate-500">Mediana: {formatarMoeda(linha.estatisticas.mediana)} · p75: {formatarMoeda(linha.percentis?.p75 ?? null)}</div></div><button type="button" aria-label={`Remover ${linha.titulo} da grade`} onClick={() => removerDaGrade(linha.cbo)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-slate-500 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button></div>)}
+            </CardContent>
+          </Card> : null}
 
           <div className="flex items-center justify-center gap-3 pt-2">
             <Button

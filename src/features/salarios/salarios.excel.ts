@@ -1,7 +1,7 @@
 // src/features/salarios/salarios.excel.ts
 // Geração da planilha XLSX da pesquisa salarial por CBO (padrão pesquisa-precos.excel.ts).
 import * as XLSX from 'xlsx'
-import type { SalarioBuscaResponse } from './salarios.types'
+import type { SalarioBuscaResponse, SalarioCard } from './salarios.types'
 
 export interface DadosExportSalarios {
   termo: string
@@ -10,6 +10,7 @@ export interface DadosExportSalarios {
   aplicarInpc: boolean
   /** Quantidade máxima de ocupações exportadas (default 200). */
   limite?: number
+  grade?: SalarioCard[]
 }
 
 function formatarMoeda(valor: number | null | undefined): string {
@@ -43,8 +44,8 @@ export function gerarPlanilhaSalarios(dados: DadosExportSalarios, resultado: Sal
 
   // ---------- Planilha 2: Resultados ----------
   const header: string[] = dados.aplicarInpc
-    ? ['CBO', 'Ocupação', 'UFs', 'Menor (corrigido)', 'Média (corrigida)', 'Mediana (corrigida)', 'Maior (corrigido)', 'Média original', 'Mediana original']
-    : ['CBO', 'Ocupação', 'UFs', 'Menor', 'Média', 'Mediana', 'Maior']
+    ? ['CBO', 'Ocupação', 'Família', 'Perfil ocupacional', 'UFs', 'Menor (corrigido)', 'Média (corrigida)', 'Mediana (corrigida)', 'Maior (corrigido)', 'P25', 'P50', 'P75', 'Média original', 'Mediana original', 'Fonte']
+    : ['CBO', 'Ocupação', 'Família', 'Perfil ocupacional', 'UFs', 'Menor', 'Média', 'Mediana', 'Maior', 'P25', 'P50', 'P75', 'Fonte']
 
   const rows: (string | number)[][] = [
     header,
@@ -53,22 +54,34 @@ export function gerarPlanilhaSalarios(dados: DadosExportSalarios, resultado: Sal
         ? [
             item.cbo,
             item.titulo,
+            item.hierarquia?.familia || '',
+            item.hierarquia?.perfilOcupacional || '',
             item.ufCount,
             item.estatisticas.menor ?? 0,
             item.estatisticas.media ?? 0,
             item.estatisticas.mediana ?? 0,
             item.estatisticas.maior ?? 0,
+            item.percentis?.p25 ?? 0,
+            item.percentis?.p50 ?? 0,
+            item.percentis?.p75 ?? 0,
             item.estatisticasOriginal?.media ?? 0,
             item.estatisticasOriginal?.mediana ?? 0,
+            item.hierarquia?.fonte || '',
           ]
         : [
             item.cbo,
             item.titulo,
+            item.hierarquia?.familia || '',
+            item.hierarquia?.perfilOcupacional || '',
             item.ufCount,
             item.estatisticas.menor ?? 0,
             item.estatisticas.media ?? 0,
             item.estatisticas.mediana ?? 0,
             item.estatisticas.maior ?? 0,
+            item.percentis?.p25 ?? 0,
+            item.percentis?.p50 ?? 0,
+            item.percentis?.p75 ?? 0,
+            item.hierarquia?.fonte || '',
           ],
     ),
   ]
@@ -77,6 +90,8 @@ export function gerarPlanilhaSalarios(dados: DadosExportSalarios, resultado: Sal
   ws['!cols'] = [
     { wch: 8 },
     { wch: 70 },
+    { wch: 24 },
+    { wch: 60 },
     { wch: 6 },
     { wch: 16 },
     { wch: 16 },
@@ -84,7 +99,7 @@ export function gerarPlanilhaSalarios(dados: DadosExportSalarios, resultado: Sal
     { wch: 16 },
     ...(dados.aplicarInpc ? [{ wch: 16 }, { wch: 16 }] : []),
   ]
-  const currencyCols = dados.aplicarInpc ? [3, 4, 5, 6, 7, 8] : [3, 4, 5, 6]
+  const currencyCols = dados.aplicarInpc ? [5, 6, 7, 8, 9, 10, 11, 12] : [5, 6, 7, 8, 9, 10, 11]
   for (let r = 1; r < rows.length; r += 1) {
     for (const c of currencyCols) {
       const cell = ws[XLSX.utils.encode_cell({ r, c })]

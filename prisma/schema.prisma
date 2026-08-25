@@ -12,21 +12,21 @@ datasource db {
 
 // Tabela principal do CATMAT
 model CatmatItem {
-  codigoItem              Int     @id @unique
+  codigoItem              Int                      @id @unique
   codigoGrupo             Int
   nomeGrupo               String
   codigoClasse            Int
   nomeClasse              String
   codigoPdm               Int
   nomePdm                 String
-  descricaoItem           String  @db.Text
+  descricaoItem           String                   @db.Text
   codigoNcm               String?
-  aplicaMargemPreferencia Boolean @default(false)
+  aplicaMargemPreferencia Boolean                  @default(false)
   dataHoraAtualizacao     DateTime
   tsv                     Unsupported("tsvector")?
-  
+
   // Relacionamentos
-  compras                 CompraItem[]
+  compras CompraItem[]
 
   @@index([codigoGrupo])
   @@index([codigoClasse])
@@ -36,15 +36,15 @@ model CatmatItem {
 }
 
 model CatserItem {
-  codigoItem          Int     @id @unique
-  codigoGrupo         Int
-  nomeGrupo           String
-  codigoClasse        String
-  nomeClasse          String
-  codigoServico       Int
-  nomeServico         String
-  statusServico       Boolean @default(false)
-  busca_tsv           Unsupported("tsvector")?
+  codigoItem    Int                      @id @unique
+  codigoGrupo   Int
+  nomeGrupo     String
+  codigoClasse  String
+  nomeClasse    String
+  codigoServico Int
+  nomeServico   String
+  statusServico Boolean                  @default(false)
+  busca_tsv     Unsupported("tsvector")?
 
   @@index([codigoGrupo])
   @@index([codigoClasse])
@@ -54,21 +54,78 @@ model CatserItem {
 
 // Salários por ocupação (CBO) e UF — base anual 2023..2026 com correção INPC
 model SalarioCbo {
-  id          Int      @id @default(autoincrement())
-  uf          String   @db.Char(2)
-  estado      String
-  cbo         Int
-  titulo      String
-  salario2023 Float?
-  salario2024 Float?
-  salario2025 Float?
-  salario2026 Float?
-  busca_tsv   Unsupported("tsvector")?
+  id                      Int                      @id @default(autoincrement())
+  uf                      String                   @db.Char(2)
+  estado                  String
+  cbo                     Int
+  titulo                  String
+  salario2023             Float?
+  salario2024             Float?
+  salario2025             Float?
+  salario2026             Float?
+  grandeGrupoCodigo       String?
+  grandeGrupoTitulo       String?
+  subgrupoPrincipalCodigo String?
+  subgrupoPrincipalTitulo String?
+  familiaCodigo           String?
+  familiaTitulo           String?
+  perfilOcupacional       String?                  @db.Text
+  fonte                   String?
+  atualizadoEm            DateTime                 @default(now()) @updatedAt
+  busca_tsv               Unsupported("tsvector")?
+
+  historico SalarioCboHistorico[]
 
   @@unique([uf, cbo])
   @@index([cbo])
   @@index([titulo])
   @@index([uf])
+}
+
+model SalarioCboHistorico {
+  id          Int        @id @default(autoincrement())
+  cbo         Int
+  uf          String     @db.Char(2)
+  ano         Int
+  salario     Float
+  fonte       String?
+  carregadoEm DateTime   @default(now())
+  salarioCbo  SalarioCbo @relation(fields: [uf, cbo], references: [uf, cbo], onDelete: Cascade)
+
+  @@unique([uf, cbo, ano])
+  @@index([cbo, ano])
+  @@index([uf, ano])
+}
+
+model SalarioCboPercentil {
+  id          Int      @id @default(autoincrement())
+  cbo         Int
+  ano         Int
+  observacoes Int
+  p10         Float?
+  p25         Float?
+  p50         Float?
+  p75         Float?
+  p90         Float?
+  media       Float?
+  minimo      Float?
+  maximo      Float?
+  fonte       String?
+  calculadoEm DateTime @default(now()) @updatedAt
+
+  @@unique([cbo, ano])
+  @@index([ano])
+}
+
+model SalarioCboSinonimo {
+  id                  Int     @id @default(autoincrement())
+  cbo                 Int
+  sinonimo            String
+  sinonimoNormalizado String
+  fonte               String?
+
+  @@unique([cbo, sinonimoNormalizado])
+  @@index([sinonimoNormalizado])
 }
 
 // Resumo de atividade de preços por item, preenchido pelo uso
@@ -84,67 +141,66 @@ model PrecoResumo {
 
 // Cache de compras da API do governo
 model CompraItem {
-  id               String   @id @default(cuid())
-  idCompra         Int      @map("id_compra")
-  idItemCompra     Int      @map("id_item_compra")
-  numeroItemCompra Int      @map("numero_item_compra")
+  id                 String @id @default(cuid())
+  idCompra           Int    @map("id_compra")
+  idItemCompra       Int    @map("id_item_compra")
+  numeroItemCompra   Int    @map("numero_item_compra")
   codigoItemCatalogo Int    @map("codigo_item_catalogo")
-  
+
   // Dados da compra
-  dataCompra       DateTime @map("data_compra")
-  dataResultado    DateTime? @map("data_resultado")
-  modalidade       Int?
-  forma            String?
+  dataCompra         DateTime  @map("data_compra")
+  dataResultado      DateTime? @map("data_resultado")
+  modalidade         Int?
+  forma              String?
   criterioJulgamento String?
-  
+
   // Fornecedor
-  niFornecedor     String?  @map("ni_fornecedor")
-  nomeFornecedor   String?  @map("nome_fornecedor")
-  
+  niFornecedor   String? @map("ni_fornecedor")
+  nomeFornecedor String? @map("nome_fornecedor")
+
   // Quantidades e preços
-  quantidade       Float
-  precoUnitario    Float    @map("preco_unitario")
+  quantidade              Float
+  precoUnitario           Float  @map("preco_unitario")
   percentualMaiorDesconto Float? @map("percentual_maior_desconto")
-  
+
   // Unidades
-  siglaUnidadeFornecimento String? @map("sigla_unidade_fornecimento")
-  nomeUnidadeFornecimento String? @map("nome_unidade_fornecimento")
-  capacidadeUnidadeFornecimento Float? @map("capacidade_unidade_fornecimento")
-  siglaUnidadeMedida String? @map("sigla_unidade_medida")
-  
+  siglaUnidadeFornecimento      String? @map("sigla_unidade_fornecimento")
+  nomeUnidadeFornecimento       String? @map("nome_unidade_fornecimento")
+  capacidadeUnidadeFornecimento Float?  @map("capacidade_unidade_fornecimento")
+  siglaUnidadeMedida            String? @map("sigla_unidade_medida")
+
   // UASG
-  codigoUasg       String?  @map("codigo_uasg")
-  nomeUasg         String?  @map("nome_uasg")
-  codigoOrgao      Int?     @map("codigo_orgao")
-  nomeOrgao        String?  @map("nome_orgao")
-  
+  codigoUasg  String? @map("codigo_uasg")
+  nomeUasg    String? @map("nome_uasg")
+  codigoOrgao Int?    @map("codigo_orgao")
+  nomeOrgao   String? @map("nome_orgao")
+
   // Localização
-  estado           String?
-  codigoMunicipio  Int?     @map("codigo_municipio")
-  municipio        String?
-  poder            String?
-  esfera           String?
-  
+  estado          String?
+  codigoMunicipio Int?    @map("codigo_municipio")
+  municipio       String?
+  poder           String?
+  esfera          String?
+
   // Datas de atualização
-  dataAtualizacaoFato DateTime @map("data_atualizacao_fato")
+  dataAtualizacaoFato       DateTime  @map("data_atualizacao_fato")
   dataHoraAtualizacaoCompra DateTime? @map("data_hora_atualizacao_compra")
-  dataHoraAtualizacaoItem DateTime? @map("data_hora_atualizacao_item")
-  dataHoraAtualizacaoUasg DateTime? @map("data_hora_atualizacao_uasg")
-  
+  dataHoraAtualizacaoItem   DateTime? @map("data_hora_atualizacao_item")
+  dataHoraAtualizacaoUasg   DateTime? @map("data_hora_atualizacao_uasg")
+
   // Campos adicionais
-  objetoCompra     String?  @db.Text @map("objeto_compra")
-  descricaoDetalhadaItem String? @db.Text @map("descricao_detalhada_item")
-  marca            String?
-  idCompraItem     String?  @map("id_compra_item")
-  
+  objetoCompra           String? @map("objeto_compra") @db.Text
+  descricaoDetalhadaItem String? @map("descricao_detalhada_item") @db.Text
+  marca                  String?
+  idCompraItem           String? @map("id_compra_item")
+
   // Relacionamentos
-  catmatItem       CatmatItem @relation(fields: [codigoItemCatalogo], references: [codigoItem])
-  
-  @@map("compras_item")
+  catmatItem CatmatItem @relation(fields: [codigoItemCatalogo], references: [codigoItem])
+
   @@unique([idCompra, idItemCompra])
   @@index([codigoItemCatalogo])
   @@index([dataCompra])
   @@index([codigoUasg])
   @@index([dataAtualizacaoFato])
+  @@map("compras_item")
 }
-

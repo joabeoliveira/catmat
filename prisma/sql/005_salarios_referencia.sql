@@ -22,8 +22,63 @@ CREATE TABLE IF NOT EXISTS "SalarioCbo" (
   "salario2023" DOUBLE PRECISION,
   "salario2024" DOUBLE PRECISION,
   "salario2025" DOUBLE PRECISION,
-  "salario2026" DOUBLE PRECISION
+    "salario2026" DOUBLE PRECISION
 );
+
+ALTER TABLE "SalarioCbo"
+  ADD COLUMN IF NOT EXISTS "grandeGrupoCodigo" TEXT,
+  ADD COLUMN IF NOT EXISTS "grandeGrupoTitulo" TEXT,
+  ADD COLUMN IF NOT EXISTS "subgrupoPrincipalCodigo" TEXT,
+  ADD COLUMN IF NOT EXISTS "subgrupoPrincipalTitulo" TEXT,
+  ADD COLUMN IF NOT EXISTS "familiaCodigo" TEXT,
+  ADD COLUMN IF NOT EXISTS "familiaTitulo" TEXT,
+  ADD COLUMN IF NOT EXISTS "perfilOcupacional" TEXT,
+  ADD COLUMN IF NOT EXISTS "fonte" TEXT,
+  ADD COLUMN IF NOT EXISTS "atualizadoEm" TIMESTAMPTZ NOT NULL DEFAULT now();
+
+CREATE TABLE IF NOT EXISTS "SalarioCboHistorico" (
+  "id" SERIAL PRIMARY KEY,
+  "cbo" INTEGER NOT NULL,
+  "uf" CHAR(2) NOT NULL,
+  "ano" INTEGER NOT NULL,
+  "salario" DOUBLE PRECISION NOT NULL,
+  "fonte" TEXT,
+  "carregadoEm" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT "SalarioCboHistorico_uf_cbo_ano_key" UNIQUE ("uf", "cbo", "ano")
+);
+
+CREATE TABLE IF NOT EXISTS "SalarioCboPercentil" (
+  "id" SERIAL PRIMARY KEY,
+  "cbo" INTEGER NOT NULL,
+  "ano" INTEGER NOT NULL,
+  "observacoes" INTEGER NOT NULL,
+  "p10" DOUBLE PRECISION,
+  "p25" DOUBLE PRECISION,
+  "p50" DOUBLE PRECISION,
+  "p75" DOUBLE PRECISION,
+  "p90" DOUBLE PRECISION,
+  "media" DOUBLE PRECISION,
+  "minimo" DOUBLE PRECISION,
+  "maximo" DOUBLE PRECISION,
+  "fonte" TEXT,
+  "calculadoEm" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT "SalarioCboPercentil_cbo_ano_key" UNIQUE ("cbo", "ano")
+);
+
+CREATE TABLE IF NOT EXISTS "SalarioCboSinonimo" (
+  "id" SERIAL PRIMARY KEY,
+  "cbo" INTEGER NOT NULL,
+  "sinonimo" TEXT NOT NULL,
+  "sinonimoNormalizado" TEXT NOT NULL,
+  "fonte" TEXT,
+  CONSTRAINT "SalarioCboSinonimo_cbo_sinonimoNormalizado_key" UNIQUE ("cbo", "sinonimoNormalizado")
+);
+
+CREATE INDEX IF NOT EXISTS salario_historico_cbo_ano_idx ON "SalarioCboHistorico" ("cbo", "ano");
+CREATE INDEX IF NOT EXISTS salario_historico_uf_ano_idx ON "SalarioCboHistorico" ("uf", "ano");
+CREATE INDEX IF NOT EXISTS salario_percentil_ano_idx ON "SalarioCboPercentil" ("ano");
+CREATE INDEX IF NOT EXISTS salario_sinonimo_normalizado_idx ON "SalarioCboSinonimo" ("sinonimoNormalizado");
+CREATE INDEX IF NOT EXISTS salario_hierarquia_idx ON "SalarioCbo" ("familiaCodigo", "subgrupoPrincipalCodigo", "grandeGrupoCodigo");
 
 -- Coluna de busca gerada (pesos: titulo=A, cbo=B)
 ALTER TABLE "SalarioCbo"
