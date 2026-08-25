@@ -79,7 +79,7 @@ async function lerMapa(nome, chaveEnv) {
     const values = parseLinha(line)
     const code = codigo(values[0])
     const title = texto(values[1] || values.slice(1).join(' — '))
-    if (code && title) mapa.set(code, title)
+    if (code !== null && title) mapa.set(code, title)
     else ignoradas += 1
   }
   if (fonte.temporary) fs.rmSync(fonte.path, { force: true })
