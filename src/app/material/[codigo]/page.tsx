@@ -119,7 +119,7 @@ export default async function MaterialPage({ params }: MaterialPageProps) {
   const comprasRecentes = Array.isArray(estatisticas?.comprasRecentes) ? estatisticas.comprasRecentes : []
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950 px-4 py-10 text-slate-900 dark:text-slate-100">
+    <main className="min-h-screen bg-slate-50 px-3 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-4 sm:py-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <div className="flex flex-wrap items-center gap-3">
           <VoltarButton />
@@ -136,8 +136,8 @@ export default async function MaterialPage({ params }: MaterialPageProps) {
 
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6">
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-600 dark:text-cyan-400">Material</p>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">{item.nomePdm}</h1>
+          <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
+            <h1 className="min-w-0 break-words text-2xl font-semibold text-slate-900 dark:text-white sm:text-3xl">{item.nomePdm}</h1>
             <div className="flex items-center gap-2">
               <FavoritoButton
                 comTexto

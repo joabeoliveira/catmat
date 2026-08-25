@@ -55,7 +55,7 @@ export function CatserPrecosTable({ data }: Props) {
   ]
 
   return (
-    <section className="space-y-4 px-6 py-4">
+    <section className="min-w-0 space-y-4 px-4 py-4 sm:px-6">
       <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Histórico de preços</h3>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -75,7 +75,44 @@ export function CatserPrecosTable({ data }: Props) {
           Sem registros de preço para este serviço.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+        <>
+        <div className="space-y-3 md:hidden">
+          {data.itens.map((item, index) => {
+            const objeto = item.objetoCompra || item.descricaoItem || ''
+            const expandido = !!expandidos[index]
+            const objetoResumo = resumir(objeto, 180)
+            const local = item.municipio ? `${item.municipio}${item.estado ? `/${item.estado}` : ''}` : item.estado || '—'
+            return (
+              <article key={`${item.idCompra}-${index}`} className="rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="text-xs text-slate-500">Data da compra</div>
+                    <div className="font-medium text-slate-900 dark:text-white">{formatarData(item.dataCompra)}</div>
+                  </div>
+                  <div className="text-right font-semibold text-emerald-700 dark:text-emerald-300">{formatarMoeda(item.precoUnitario)}</div>
+                </div>
+                <dl className="mt-3 grid gap-2 border-t border-slate-200 pt-3 dark:border-slate-800 sm:grid-cols-2">
+                  <div className="min-w-0"><dt className="text-xs text-slate-500">Órgão (UASG)</dt><dd className="break-words">{item.nomeUasg || '—'}{item.codigoUasg ? <span className="block text-xs text-slate-500">UASG {item.codigoUasg}</span> : null}</dd></div>
+                  <div className="min-w-0"><dt className="text-xs text-slate-500">Fornecedor</dt><dd className="break-words">{item.nomeFornecedor || '—'}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Quantidade / unidade</dt><dd>{item.quantidade ?? '—'} {[item.siglaUnidadeMedida, item.nomeUnidadeMedida].filter(Boolean).join(' · ')}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Local / poder</dt><dd>{local} · {item.poder || '—'}</dd></div>
+                </dl>
+                <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
+                  <div className="text-xs text-slate-500">Objeto</div>
+                  <div className="mt-1 break-words">{expandido ? objeto : objetoResumo || '—'}</div>
+                  {objeto.length > 180 ? <button type="button" onClick={() => alternarObjeto(index)} className="mt-2 min-h-11 text-xs font-medium text-cyan-600 hover:underline dark:text-cyan-400">{expandido ? 'Mostrar menos' : 'Ler mais'}</button> : null}
+                </div>
+                {item.idCompra ? <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+                  <span className="break-all font-mono text-xs">Compra: {item.idCompra}</span>
+                  <button type="button" onClick={() => void copiarId(item.idCompra!)} title="Copiar ID da compra" aria-label="Copiar ID da compra" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded p-1 text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400">{copiadoId === item.idCompra ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}</button>
+                  <a href={item.linkPncp ?? `${URL_PNCP}?busca=${encodeURIComponent(item.idCompra)}`} target="_blank" rel="noopener noreferrer" title="Ver compra no PNCP (Compras.gov.br)" aria-label="Ver compra no PNCP" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded p-1 text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400"><ExternalLink className="h-3.5 w-3.5" /></a>
+                </div> : null}
+              </article>
+            )
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 md:block">
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="bg-slate-100 text-xs uppercase text-slate-600 dark:bg-slate-900 dark:text-slate-400">
               <tr>
@@ -175,6 +212,7 @@ export function CatserPrecosTable({ data }: Props) {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {data.totalRegistros > data.itens.length ? (

@@ -17,11 +17,11 @@ export default async function GruposPage() {
   const totalItens = grupos.reduce((total, grupo) => total + grupo.quantidade, 0)
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950 px-4 py-10 text-slate-900 dark:text-slate-100">
+    <main className="min-h-screen bg-slate-50 px-3 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-4 sm:py-10">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/80 sm:p-6">
           <p className="text-sm uppercase tracking-[0.3em] text-cyan-600 dark:text-cyan-400">Navegação por categoria</p>
-          <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">Grupos de materiais</h1>
+          <h1 className="mt-3 text-2xl font-semibold text-slate-900 dark:text-white sm:text-3xl">Grupos de materiais</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700 dark:text-slate-300">
             O catálogo CATMAT organiza {totalItens.toLocaleString('pt-BR')} materiais em {grupos.length} grupos.
             Escolha um grupo para ver os itens e refinar por classe e PDM.

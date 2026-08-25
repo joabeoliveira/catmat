@@ -32,7 +32,8 @@ export function DanfeViewer({ dados }: DanfeViewerProps) {
         </Button>
       </div>
 
-      <div className="danfe-document border border-black bg-white p-3 font-sans text-[10px] text-black print:border-none print:p-0">
+      <div className="overflow-x-auto rounded-sm print:overflow-visible">
+        <div className="danfe-document min-w-[760px] border border-black bg-white p-3 font-sans text-[10px] text-black print:min-w-0 print:border-none print:p-0">
         <div className="mb-1 grid grid-cols-[1fr_150px] border border-black">
           <div className="p-1 text-[8px] leading-tight">
             RECEBEMOS DE <strong>{notaFiscalDTO.nomeFornecedor}</strong> OS PRODUTOS/SERVICOS CONSTANTES DA NOTA FISCAL ELETRONICA INDICADA ABAIXO.
@@ -172,6 +173,7 @@ export function DanfeViewer({ dados }: DanfeViewerProps) {
           </span>
           {" "}
           e informe a chave de acesso no campo indicado.
+        </div>
         </div>
       </div>
     </div>
