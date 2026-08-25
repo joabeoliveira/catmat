@@ -10,6 +10,7 @@ const prisma = new PrismaClient()
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const localArg = process.argv.find((arg) => !arg.startsWith('--') && arg !== process.argv[0] && arg !== process.argv[1])
 const localDir = localArg || process.env.CBO_DATA_DIR || path.join(root, 'dados', 'salarios')
+const csvEncoding = process.env.CBO_IMPORT_ENCODING || 'latin1'
 const files = {
   familia: 'cbo2002-familia.csv',
   grandeGrupo: 'cbo2002-grande-grupo.csv',
@@ -68,7 +69,7 @@ async function caminhoFonte(nome, chaveEnv) {
 async function lerMapa(nome, chaveEnv) {
   const fonte = await caminhoFonte(nome, chaveEnv)
   const mapa = new Map()
-  const stream = fs.createReadStream(fonte.path)
+  const stream = fs.createReadStream(fonte.path, { encoding: csvEncoding })
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity })
   let header = true
   let ignoradas = 0
@@ -89,7 +90,7 @@ async function lerMapa(nome, chaveEnv) {
 async function lerPerfis(nome, chaveEnv) {
   const fonte = await caminhoFonte(nome, chaveEnv)
   const mapa = new Map()
-  const rl = readline.createInterface({ input: fs.createReadStream(fonte.path), crlfDelay: Infinity })
+  const rl = readline.createInterface({ input: fs.createReadStream(fonte.path, { encoding: csvEncoding }), crlfDelay: Infinity })
   let header = true
   let indices = { familia: 3, ocupacao: 4, area: 6, atividade: 8 }
   for await (const line of rl) {
@@ -123,7 +124,7 @@ async function lerPerfis(nome, chaveEnv) {
 async function lerSinonimos(nome, chaveEnv) {
   const fonte = await caminhoFonte(nome, chaveEnv)
   const rows = []
-  const rl = readline.createInterface({ input: fs.createReadStream(fonte.path), crlfDelay: Infinity })
+  const rl = readline.createInterface({ input: fs.createReadStream(fonte.path, { encoding: csvEncoding }), crlfDelay: Infinity })
   let header = true
   for await (const line of rl) {
     if (!line.trim()) continue
@@ -131,7 +132,11 @@ async function lerSinonimos(nome, chaveEnv) {
     const values = parseLinha(line)
     const code = codigo(values[0])
     const synonym = texto(values[1] || values.slice(1).join(' '))
-    if (code && synonym) rows.push({ code, synonym, normalized: normalizar(synonym) })
+    if (code && synonym) {
+      // O arquivo de sinônimos usa CBO ocupação (6 dígitos); SalarioCbo usa família (4 dígitos).
+      const familyCode = code > 9999 ? Math.floor(code / 100) : code
+      rows.push({ code: familyCode, synonym, normalized: normalizar(synonym) })
+    }
   }
   if (fonte.temporary) fs.rmSync(fonte.path, { force: true })
   console.log(`${nome}: ${rows.length} sinônimos`)
@@ -148,6 +153,7 @@ function percentil(values, p) {
 
 async function main() {
   const perfilOnly = process.argv.includes('--perfil-only')
+  const sinonimoOnly = process.argv.includes('--sinonimo-only')
   if (perfilOnly) {
     const perfis = await lerPerfis(files.perfil, 'MINIO_CBO_PERFIL_KEY')
     const rows = await prisma.$queryRawUnsafe(`SELECT "uf", "cbo" FROM "SalarioCbo"`)
@@ -159,6 +165,16 @@ async function main() {
       atualizados += 1
     }
     console.log(`Perfis ocupacionais atualizados: ${atualizados} registros.`)
+    return
+  }
+  if (sinonimoOnly) {
+    const sinonimos = await lerSinonimos(files.sinonimo, 'MINIO_CBO_SINONIMO_KEY')
+    let importados = 0
+    for (const row of sinonimos) {
+      await prisma.$executeRawUnsafe(`INSERT INTO "SalarioCboSinonimo" ("cbo","sinonimo","sinonimoNormalizado","fonte") SELECT $1,$2,$3,$4 WHERE EXISTS (SELECT 1 FROM "SalarioCbo" WHERE "cbo"=$1) ON CONFLICT ("cbo","sinonimoNormalizado") DO UPDATE SET "sinonimo"=EXCLUDED."sinonimo","fonte"=EXCLUDED."fonte"`, row.code, row.synonym, row.normalized, 'CBO2002 sinônimos via MinIO')
+      importados += 1
+    }
+    console.log(`Sinônimos processados: ${importados} registros.`)
     return
   }
   const familia = await lerMapa(files.familia, 'MINIO_CBO_FAMILIA_KEY')

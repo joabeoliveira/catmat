@@ -68,9 +68,10 @@ function buildWhere(termo: string, filtros: SalarioBuscaParams['filtros'], param
     const partes: string[] = []
     const q = pushParam(params, termo)
     partes.push(`("busca_tsv" @@ websearch_to_tsquery('portuguese', ${q}))`)
-    partes.push(`(similarity(immutable_unaccent("titulo"), immutable_unaccent(${q})) > 0.08)`)
-    partes.push(`EXISTS (SELECT 1 FROM "SalarioCboSinonimo" s WHERE s."cbo" = "SalarioCbo"."cbo" AND (s."sinonimoNormalizado" LIKE '%' || immutable_unaccent(lower(${q})) || '%' OR similarity(immutable_unaccent(s."sinonimo"), immutable_unaccent(${q})) > 0.12))`)
-    partes.push(`immutable_unaccent(coalesce("perfilOcupacional", '')) ILIKE '%' || immutable_unaccent(${q}) || '%'`)
+    partes.push(`immutable_unaccent(lower("titulo")) LIKE '%' || immutable_unaccent(lower(${q})) || '%'`)
+    partes.push(`EXISTS (SELECT 1 FROM "SalarioCboSinonimo" s WHERE s."cbo" = "SalarioCbo"."cbo" AND immutable_unaccent(lower(s."sinonimo")) LIKE '%' || immutable_unaccent(lower(${q})) || '%')`)
+    partes.push(`immutable_unaccent(lower(coalesce("perfilOcupacional", ''))) LIKE '%' || immutable_unaccent(lower(${q})) || '%'`)
+    partes.push(`(similarity(immutable_unaccent(lower("titulo")), immutable_unaccent(lower(${q}))) > 0.25)`)
     if (/^\d+$/.test(termo)) {
       partes.push(`("cbo"::text LIKE ${pushParam(params, `${termo}%`)})`)
     }
@@ -245,8 +246,8 @@ export class SalariosService {
         SELECT "cbo", max("titulo") AS titulo
         FROM "SalarioCbo"
         WHERE ("busca_tsv" @@ websearch_to_tsquery('portuguese', $1))
-           OR (similarity(immutable_unaccent("titulo"), immutable_unaccent($1)) > 0.15)
-           OR EXISTS (SELECT 1 FROM "SalarioCboSinonimo" s WHERE s."cbo" = "SalarioCbo"."cbo" AND similarity(immutable_unaccent(s."sinonimo"), immutable_unaccent($1)) > 0.12)
+           OR (immutable_unaccent(lower("titulo")) LIKE '%' || immutable_unaccent(lower($1)) || '%')
+           OR EXISTS (SELECT 1 FROM "SalarioCboSinonimo" s WHERE s."cbo" = "SalarioCbo"."cbo" AND immutable_unaccent(lower(s."sinonimo")) LIKE '%' || immutable_unaccent(lower($1)) || '%')
            OR ("cbo"::text LIKE $2)
         GROUP BY "cbo"
         ORDER BY max("titulo") ASC
