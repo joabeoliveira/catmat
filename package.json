@@ -10,13 +10,16 @@
     "import:nfe": "node ./scripts/import-nfe-items.mjs",
     "import:bps": "node ./scripts/import-bps-items.mjs",
     "import:catser": "node ./scripts/import-catser.mjs",
+    "import:salarios": "node ./scripts/import-salarios.mjs",
     "db:search-setup": "psql \"$DATABASE_URL\" -f prisma/sql/001_fts_trgm.sql",
     "db:nfe-setup": "psql \"$DATABASE_URL\" -f prisma/sql/002_nfe_referencia.sql",
     "db:bps-setup": "psql \"$DATABASE_URL\" -f prisma/sql/003_bps_referencia.sql",
     "db:catser-setup": "psql \"$DATABASE_URL\" -f prisma/sql/004_catser_referencia.sql",
+    "db:salarios-setup": "psql \"$DATABASE_URL\" -f prisma/sql/005_salarios_referencia.sql",
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
     "@prisma/client": "5.22.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",

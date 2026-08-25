@@ -55,3 +55,27 @@ Por padrão, o CSV é lido como `latin1`. Se necessário, ajuste:
 ```bash
 BPS_IMPORT_ENCODING=utf8 npm run import:bps -- /app/dados-importacao/bps.CSV
 ```
+
+## Carga da base de Salários (CBO/INPC)
+
+A base de salários (`dados/salariosBrasil_INPC.csv`) pode ser carregada de **duas formas**:
+
+**Opção 1 — Arquivo local (padrão de desenvolvimento):**
+
+```bash
+npm run import:salarios -- dados/salariosBrasil_INPC.csv
+```
+
+**Opção 2 — MinIO (produção):** com o CSV no bucket `catmat-dados` do MinIO, o import baixa o objeto via S3 SDK e popula o banco sem precisar do arquivo no servidor:
+
+```bash
+npm run import:salarios
+```
+
+O script prioriza o MinIO quando as variáveis abaixo existem e cai para o arquivo local caso contrário:
+
+- `MINIO_ENDPOINT` — ex.: `https://s3.gptgov.com.br`
+- `MINIO_ACCESS_KEY`
+- `MINIO_SECRET_KEY`
+- `MINIO_BUCKET` — ex.: `catmat-dados`
+- `MINIO_CSV_KEY` — ex.: `salariosBrasil_INPC.csv`

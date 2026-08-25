@@ -52,6 +52,25 @@ model CatserItem {
   @@index([nomeServico])
 }
 
+// Salários por ocupação (CBO) e UF — base anual 2023..2026 com correção INPC
+model SalarioCbo {
+  id          Int      @id @default(autoincrement())
+  uf          String   @db.Char(2)
+  estado      String
+  cbo         Int
+  titulo      String
+  salario2023 Float?
+  salario2024 Float?
+  salario2025 Float?
+  salario2026 Float?
+  busca_tsv   Unsupported("tsvector")?
+
+  @@unique([uf, cbo])
+  @@index([cbo])
+  @@index([titulo])
+  @@index([uf])
+}
+
 // Resumo de atividade de preços por item, preenchido pelo uso
 // (toda consulta de preços grava aqui) — alimenta o selo "tem histórico"
 // na busca sem precisar varrer a API do governo
