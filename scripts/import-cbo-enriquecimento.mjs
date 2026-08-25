@@ -154,6 +154,7 @@ function percentil(values, p) {
 async function main() {
   const perfilOnly = process.argv.includes('--perfil-only')
   const sinonimoOnly = process.argv.includes('--sinonimo-only')
+  const hierarquiaOnly = process.argv.includes('--hierarquia-only')
   if (perfilOnly) {
     const perfis = await lerPerfis(files.perfil, 'MINIO_CBO_PERFIL_KEY')
     const rows = await prisma.$queryRawUnsafe(`SELECT "uf", "cbo" FROM "SalarioCbo"`)
@@ -175,6 +176,32 @@ async function main() {
       importados += 1
     }
     console.log(`Sinônimos processados: ${importados} registros.`)
+    return
+  }
+  if (hierarquiaOnly) {
+    const familia = await lerMapa(files.familia, 'MINIO_CBO_FAMILIA_KEY')
+    const grandeGrupo = await lerMapa(files.grandeGrupo, 'MINIO_CBO_GRANDE_GRUPO_KEY')
+    const subgrupo = await lerMapa(files.subgrupo, 'MINIO_CBO_SUBGRUPO_KEY')
+    const rows = await prisma.$queryRawUnsafe(`SELECT "uf", "cbo" FROM "SalarioCbo"`)
+    let atualizados = 0
+    for (const row of rows) {
+      const familyCode = String(row.cbo).padStart(4, '0')
+      const groupCode = familyCode.slice(0, 1)
+      const subgroupCode = familyCode.slice(0, 2)
+      await prisma.$executeRawUnsafe(
+        `UPDATE "SalarioCbo" SET "familiaCodigo"=$1,"familiaTitulo"=$2,"grandeGrupoCodigo"=$3,"grandeGrupoTitulo"=$4,"subgrupoPrincipalCodigo"=$5,"subgrupoPrincipalTitulo"=$6 WHERE "uf"=$7 AND "cbo"=$8`,
+        familyCode,
+        familia.get(Number(familyCode)) || null,
+        groupCode,
+        grandeGrupo.get(Number(groupCode)) || null,
+        subgroupCode,
+        subgrupo.get(Number(subgroupCode)) || null,
+        row.uf,
+        row.cbo,
+      )
+      atualizados += 1
+    }
+    console.log(`Hierarquia CBO atualizada: ${atualizados} registros.`)
     return
   }
   const familia = await lerMapa(files.familia, 'MINIO_CBO_FAMILIA_KEY')
