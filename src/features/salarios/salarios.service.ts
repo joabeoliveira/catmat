@@ -130,6 +130,25 @@ export class SalariosService {
 
     const whereParams: unknown[] = []
     const whereSql = buildWhere(termo, { uf, ano, aplicarInpc }, whereParams)
+    const orderSql = termo
+      ? `MIN(CASE
+          WHEN immutable_unaccent(lower("titulo")) = immutable_unaccent(lower($1)) THEN 0
+          WHEN immutable_unaccent(lower("titulo")) LIKE immutable_unaccent(lower($1)) || '%' THEN 1
+          WHEN immutable_unaccent(lower("titulo")) LIKE '%' || immutable_unaccent(lower($1)) || '%' THEN 2
+          WHEN EXISTS (
+            SELECT 1 FROM "SalarioCboSinonimo" s
+            WHERE s."cbo" = "SalarioCbo"."cbo"
+              AND immutable_unaccent(lower(s."sinonimo")) LIKE immutable_unaccent(lower($1)) || '%'
+          ) THEN 3
+          WHEN EXISTS (
+            SELECT 1 FROM "SalarioCboSinonimo" s
+            WHERE s."cbo" = "SalarioCbo"."cbo"
+              AND immutable_unaccent(lower(s."sinonimo")) LIKE '%' || immutable_unaccent(lower($1)) || '%'
+          ) THEN 4
+          WHEN immutable_unaccent(lower(coalesce("perfilOcupacional", ''))) LIKE '%' || immutable_unaccent(lower($1)) || '%' THEN 5
+          ELSE 6
+        END), max("titulo") ASC`
+      : 'max("titulo") ASC'
 
     const cboRows = await prisma.$queryRawUnsafe<CboRow[]>(
       `
@@ -137,7 +156,7 @@ export class SalariosService {
         FROM "SalarioCbo"
         WHERE ${whereSql}
         GROUP BY "cbo"
-        ORDER BY max("titulo") ASC
+        ORDER BY ${orderSql}
         LIMIT ${pushParam(whereParams, limite)}
         OFFSET ${pushParam(whereParams, offset)}
       `,
