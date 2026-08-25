@@ -8,7 +8,8 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const localDir = process.argv[2] || process.env.CBO_DATA_DIR || path.join(root, 'dados', 'salarios')
+const localArg = process.argv.find((arg) => !arg.startsWith('--') && arg !== process.argv[0] && arg !== process.argv[1])
+const localDir = localArg || process.env.CBO_DATA_DIR || path.join(root, 'dados', 'salarios')
 const files = {
   familia: 'cbo2002-familia.csv',
   grandeGrupo: 'cbo2002-grande-grupo.csv',
@@ -90,13 +91,29 @@ async function lerPerfis(nome, chaveEnv) {
   const mapa = new Map()
   const rl = readline.createInterface({ input: fs.createReadStream(fonte.path), crlfDelay: Infinity })
   let header = true
+  let indices = { familia: 3, ocupacao: 4, area: 6, atividade: 8 }
   for await (const line of rl) {
     if (!line.trim()) continue
-    if (header) { header = false; continue }
+    if (header) {
+      const columns = parseLinha(line).map((column) => normalizar(column))
+      indices = {
+        familia: Math.max(0, columns.indexOf('cod_familia')),
+        ocupacao: Math.max(0, columns.indexOf('cod_ocupacao')),
+        area: Math.max(0, columns.indexOf('nome_grande_area')),
+        atividade: Math.max(0, columns.indexOf('nome_atividade')),
+      }
+      header = false
+      continue
+    }
     const values = parseLinha(line)
-    const code = codigo(values[0])
-    const profile = values.slice(1).map(texto).filter(Boolean).join('\n')
-    if (code && profile) mapa.set(code, profile)
+    const code = codigo(values[indices.familia]) || codigo(values[indices.ocupacao])
+    const area = texto(values[indices.area])
+    const activity = texto(values[indices.atividade])
+    if (code && activity) {
+      const current = mapa.get(code) || ''
+      const entry = `${area ? `${area}: ` : ''}${activity}`
+      if (!current.includes(entry)) mapa.set(code, current ? `${current}\n- ${entry}` : `Atividades do perfil:\n- ${entry}`)
+    }
   }
   if (fonte.temporary) fs.rmSync(fonte.path, { force: true })
   console.log(`${nome}: ${mapa.size} perfis`)
@@ -130,6 +147,20 @@ function percentil(values, p) {
 }
 
 async function main() {
+  const perfilOnly = process.argv.includes('--perfil-only')
+  if (perfilOnly) {
+    const perfis = await lerPerfis(files.perfil, 'MINIO_CBO_PERFIL_KEY')
+    const rows = await prisma.$queryRawUnsafe(`SELECT "uf", "cbo" FROM "SalarioCbo"`)
+    let atualizados = 0
+    for (const row of rows) {
+      const profile = perfis.get(Number(String(row.cbo).padStart(4, '0')))
+      if (!profile) continue
+      await prisma.$executeRawUnsafe(`UPDATE "SalarioCbo" SET "perfilOcupacional"=$1,"fonte"=COALESCE("fonte", $2) WHERE "uf"=$3 AND "cbo"=$4`, profile, 'CBO2002 perfil ocupacional via MinIO', row.uf, row.cbo)
+      atualizados += 1
+    }
+    console.log(`Perfis ocupacionais atualizados: ${atualizados} registros.`)
+    return
+  }
   const familia = await lerMapa(files.familia, 'MINIO_CBO_FAMILIA_KEY')
   const grandeGrupo = await lerMapa(files.grandeGrupo, 'MINIO_CBO_GRANDE_GRUPO_KEY')
   const subgrupo = await lerMapa(files.subgrupo, 'MINIO_CBO_SUBGRUPO_KEY')
