@@ -220,11 +220,15 @@ export const arquivosLicitacao = [
 > - **Fase 4 (Frontend) — código pronto (sem teste real):** `src/app/tce-pr/page.tsx`, `src/components/tcepr/TcePrSearch.tsx` (busca + ordenação + export XLSX), `TcePrFiltros.tsx`, `TcePrResults.tsx`, `TcePrPrecosTable.tsx` (cards mobile + tabela desktop); link `TCE-PR` no `SiteHeader.tsx`. `npx tsc --noEmit` ✅.
 > - **Git:** branch `main` sincronizada; XMLs/CSVs ignorados (`.gitignore` com `data/*.xml`, `data/*.csv`).
 >
-> **O que falta para rodar em Casa:**
-> 1. Definir `DATABASE_URL` (Postgres local via `docker-compose`/serviço ou remoto) e rodar a criação da tabela:
->    `npm run db:tcepr-setup` (ou `npx prisma db execute --file prisma/sql/006_tcepr_referencia.sql --schema prisma/schema.prisma`).
-> 2. Importar a carga (amostra já em `data/2026_410010_LicitacaoVencedor.xml`):
->    `npm run import:tcepr -- data` (ou passar arquivo/pasta específica).
-> 3. Subir `npm run dev` e testar `GET /api/tce-pr/buscar?q=motobomba`, ordenação por preço e export XLSX; conferir a página `/tce-pr`.
+> **Produção (VPS/EasyPanel) — VALIDADO em 26/08/2026:**
+> - Deploy manual OK. MinIO: bucket `tcepr` com **59 XMLs** (na raiz do bucket).
+> - `npm run import:tcepr` → **65.457 registros, 171 ignorados, 65.628 tags em 38,3s**.
+> - API `GET /api/tce-pr/buscar?q=motobomba` → 204 resultados (vencedores), métricas/facets OK; `apenasVencedores=false` e `ordenarPor=preco_asc` OK.
+> - Página `https://catmat.cotegov.com.br/tce-pr` OK (busca, filtros, métricas, cards responsivos, "Ler mais").
+> - Export XLSX (POST `/api/tce-pr/export`) OK — arquivo .xlsx válido.
+> - Fixes aplicados e em produção: **batch 900** (limite de 32767 parâmetros do Postgres, erro P2035) e **`garantirBuscaTsv()`** (coluna gerada mesmo se o `prisma db push` criar coluna comum).
 >
-> **Próximo comando a rodar:** `npm run db:tcepr-setup` (com `DATABASE_URL` definida) → `npm run import:tcepr -- data` → `npm run dev`.
+> **Próximos passos (opcional/melhorias):**
+> - Reimportação futura: `npm run import:tcepr` no container (upsert, idempotente).
+> - Mapa comparativo de lances: já dá para usar `apenasVencedores=false` (todas as classificações estão armazenadas).
+> - Ideias: rota `sugestoes`, exportar planilha IN 65/2021 reaproveitando `pesquisa-precos.excel.ts`.
