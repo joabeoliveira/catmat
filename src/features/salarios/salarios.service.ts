@@ -334,7 +334,8 @@ export class SalariosService {
     for (const row of sinonimoRows) sinonimosPorCbo.set(row.cbo, [...(sinonimosPorCbo.get(row.cbo) || []), row.sinonimo])
 
     return cboRows.map((c) => {
-      const valores = (porCbo.get(c.cbo) ?? [])
+      const cboSalarial = c.salarioCbo || (c.cbo > 9999 ? Math.floor(c.cbo / 100) : c.cbo)
+      const valores = (porCbo.get(cboSalarial) ?? [])
         .map((linha) => linha[coluna])
         .filter((v): v is number => typeof v === 'number' && v > 0)
 
@@ -342,7 +343,7 @@ export class SalariosService {
       const estatisticas = calcularEstatisticas(aplicarInpc ? corrigidos : valores)
       const estatisticasOriginal = aplicarInpc ? calcularEstatisticas(valores) : undefined
 
-      const percentis = corrigirPercentis(percentisPorCbo.get(c.salarioCbo || c.cbo), aplicarInpc ? fatorInpc : 1)
+      const percentis = corrigirPercentis(percentisPorCbo.get(cboSalarial), aplicarInpc ? fatorInpc : 1)
       const sinonimos = sinonimosPorCbo.get(c.cbo) || []
       return {
         cbo: c.cbo,
