@@ -107,13 +107,16 @@ async function lerPerfis(nome, chaveEnv) {
       continue
     }
     const values = parseLinha(line)
-    const code = codigo(values[indices.familia]) || codigo(values[indices.ocupacao])
+    const familiaCode = codigo(values[indices.familia])
+    const ocupacaoCode = codigo(values[indices.ocupacao])
     const area = texto(values[indices.area])
     const activity = texto(values[indices.atividade])
-    if (code && activity) {
-      const current = mapa.get(code) || ''
+    if ((familiaCode || ocupacaoCode) && activity) {
       const entry = `${area ? `${area}: ` : ''}${activity}`
-      if (!current.includes(entry)) mapa.set(code, current ? `${current}\n- ${entry}` : `Atividades do perfil:\n- ${entry}`)
+      for (const code of [familiaCode, ocupacaoCode].filter(Boolean)) {
+        const current = mapa.get(code) || ''
+        if (!current.includes(entry)) mapa.set(code, current ? `${current}\n- ${entry}` : `Atividades do perfil:\n- ${entry}`)
+      }
     }
   }
   if (fonte.temporary) fs.rmSync(fonte.path, { force: true })
@@ -135,12 +138,23 @@ async function lerSinonimos(nome, chaveEnv) {
     if (code && synonym) {
       // O arquivo de sinônimos usa CBO ocupação (6 dígitos); SalarioCbo usa família (4 dígitos).
       const familyCode = code > 9999 ? Math.floor(code / 100) : code
-      rows.push({ code: familyCode, synonym, normalized: normalizar(synonym) })
+      rows.push({ code: familyCode, ocupacaoCode: code > 9999 ? code : null, synonym, normalized: normalizar(synonym) })
     }
   }
   if (fonte.temporary) fs.rmSync(fonte.path, { force: true })
   console.log(`${nome}: ${rows.length} sinônimos`)
   return rows
+}
+
+async function importarOcupacoes(ocupacoes, perfis) {
+  let atualizados = 0
+  for (const [cbo, titulo] of ocupacoes) {
+    if (cbo < 10000) continue
+    const familiaCbo = Math.floor(cbo / 100)
+    await prisma.$executeRawUnsafe(`INSERT INTO "SalarioCboOcupacao" ("cbo","familiaCbo","titulo","perfilOcupacional","fonte") VALUES ($1,$2,$3,$4,$5) ON CONFLICT ("cbo") DO UPDATE SET "familiaCbo"=EXCLUDED."familiaCbo","titulo"=EXCLUDED."titulo","perfilOcupacional"=EXCLUDED."perfilOcupacional","fonte"=EXCLUDED."fonte","atualizadoEm"=now()`, cbo, familiaCbo, titulo, perfis.get(cbo) || perfis.get(familiaCbo) || null, 'CBO 2002 — MTE')
+    atualizados += 1
+  }
+  return atualizados
 }
 
 function percentil(values, p) {
@@ -155,6 +169,7 @@ async function main() {
   const perfilOnly = process.argv.includes('--perfil-only')
   const sinonimoOnly = process.argv.includes('--sinonimo-only')
   const hierarquiaOnly = process.argv.includes('--hierarquia-only')
+  const ocupacaoOnly = process.argv.includes('--ocupacao-only')
   if (perfilOnly) {
     const perfis = await lerPerfis(files.perfil, 'MINIO_CBO_PERFIL_KEY')
     const rows = await prisma.$queryRawUnsafe(`SELECT "uf", "cbo" FROM "SalarioCbo"`)
@@ -172,10 +187,17 @@ async function main() {
     const sinonimos = await lerSinonimos(files.sinonimo, 'MINIO_CBO_SINONIMO_KEY')
     let importados = 0
     for (const row of sinonimos) {
-      await prisma.$executeRawUnsafe(`INSERT INTO "SalarioCboSinonimo" ("cbo","sinonimo","sinonimoNormalizado","fonte") SELECT $1,$2,$3,$4 WHERE EXISTS (SELECT 1 FROM "SalarioCbo" WHERE "cbo"=$1) ON CONFLICT ("cbo","sinonimoNormalizado") DO UPDATE SET "sinonimo"=EXCLUDED."sinonimo","fonte"=EXCLUDED."fonte"`, row.code, row.synonym, row.normalized, 'CBO2002 sinônimos via MinIO')
+      await prisma.$executeRawUnsafe(`INSERT INTO "SalarioCboSinonimo" ("cbo","ocupacaoCbo","sinonimo","sinonimoNormalizado","fonte") SELECT $1,$2,$3,$4,$5 WHERE EXISTS (SELECT 1 FROM "SalarioCbo" WHERE "cbo"=$1) ON CONFLICT ("cbo","sinonimoNormalizado") DO UPDATE SET "ocupacaoCbo"=EXCLUDED."ocupacaoCbo","sinonimo"=EXCLUDED."sinonimo","fonte"=EXCLUDED."fonte"`, row.code, row.ocupacaoCode, row.synonym, row.normalized, 'CBO2002 sinônimos')
       importados += 1
     }
     console.log(`Sinônimos processados: ${importados} registros.`)
+    return
+  }
+  if (ocupacaoOnly) {
+    const ocupacoes = await lerMapa(files.ocupacao, 'MINIO_CBO_OCUPACAO_KEY')
+    const perfis = await lerPerfis(files.perfil, 'MINIO_CBO_PERFIL_KEY')
+    const atualizados = await importarOcupacoes(ocupacoes, perfis)
+    console.log(`Ocupações detalhadas atualizadas: ${atualizados} registros.`)
     return
   }
   if (hierarquiaOnly) {
@@ -210,6 +232,7 @@ async function main() {
   const ocupacao = await lerMapa(files.ocupacao, 'MINIO_CBO_OCUPACAO_KEY')
   const perfis = await lerPerfis(files.perfil, 'MINIO_CBO_PERFIL_KEY')
   const sinonimos = await lerSinonimos(files.sinonimo, 'MINIO_CBO_SINONIMO_KEY')
+  const ocupacoesAtualizadas = await importarOcupacoes(ocupacao, perfis)
 
   const rows = await prisma.$queryRawUnsafe(`SELECT "uf", "cbo", "salario2023", "salario2024", "salario2025", "salario2026" FROM "SalarioCbo"`)
   const salariosPorCboAno = new Map()
@@ -244,9 +267,9 @@ async function main() {
   }
 
   for (const row of sinonimos) {
-    await prisma.$executeRawUnsafe(`INSERT INTO "SalarioCboSinonimo" ("cbo","sinonimo","sinonimoNormalizado","fonte") SELECT $1,$2,$3,$4 WHERE EXISTS (SELECT 1 FROM "SalarioCbo" WHERE "cbo"=$1) ON CONFLICT ("cbo","sinonimoNormalizado") DO UPDATE SET "sinonimo"=EXCLUDED."sinonimo","fonte"=EXCLUDED."fonte"`, row.code, row.synonym, row.normalized, 'CBO2002 via MinIO')
+    await prisma.$executeRawUnsafe(`INSERT INTO "SalarioCboSinonimo" ("cbo","ocupacaoCbo","sinonimo","sinonimoNormalizado","fonte") SELECT $1,$2,$3,$4,$5 WHERE EXISTS (SELECT 1 FROM "SalarioCbo" WHERE "cbo"=$1) ON CONFLICT ("cbo","sinonimoNormalizado") DO UPDATE SET "ocupacaoCbo"=EXCLUDED."ocupacaoCbo","sinonimo"=EXCLUDED."sinonimo","fonte"=EXCLUDED."fonte"`, row.code, row.ocupacaoCode, row.synonym, row.normalized, 'CBO2002 sinônimos')
   }
-  console.log(`Enriquecimento concluído: ${atualizados} salários atualizados, ${salariosPorCboAno.size} percentis calculados.`)
+  console.log(`Enriquecimento concluído: ${atualizados} salários atualizados, ${ocupacoesAtualizadas} ocupações detalhadas, ${salariosPorCboAno.size} percentis calculados.`)
 }
 
 main().catch((error) => { console.error('Erro no enriquecimento CBO:', error); process.exitCode = 1 }).finally(() => prisma.$disconnect())

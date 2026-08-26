@@ -20,6 +20,7 @@ import {
 
 interface CboRow {
   cbo: number
+  salarioCbo?: number
   titulo: string
   grandeGrupoTitulo?: string | null
   subgrupoPrincipalTitulo?: string | null
@@ -119,6 +120,28 @@ function calcularEstatisticas(valores: number[]): EstatisticasSalario {
   }
 }
 
+function buildOccupationWhere(termo: string, filtros: SalarioBuscaParams['filtros'], params: unknown[]) {
+  const clauses: string[] = []
+  const busca = `concat_ws(' ', o."titulo", o."perfilOcupacional")`
+  if (termo) {
+    const q = pushParam(params, termo)
+    clauses.push(`(o."cbo"::text LIKE ${pushParam(params, `${termo}%`)} OR immutable_unaccent(lower(${busca})) LIKE '%' || immutable_unaccent(lower(${q})) || '%' OR EXISTS (SELECT 1 FROM "SalarioCboSinonimo" sn WHERE sn."ocupacaoCbo"=o."cbo" AND immutable_unaccent(lower(sn."sinonimo")) LIKE '%' || immutable_unaccent(lower(${q})) || '%') OR websearch_to_tsquery('portuguese', ${q}) @@ to_tsvector('portuguese', immutable_unaccent(lower(${busca}))))`)
+  }
+  if (filtros?.uf) clauses.push(`EXISTS (SELECT 1 FROM "SalarioCbo" su WHERE su."cbo"=f."cbo" AND su."uf"=${pushParam(params, filtros.uf.toUpperCase())})`)
+  if (filtros?.grandeGrupo) clauses.push(`(f."grandeGrupoTitulo"=${pushParam(params, filtros.grandeGrupo)} OR f."grandeGrupoCodigo"=${pushParam(params, filtros.grandeGrupo)})`)
+  if (filtros?.subgrupoPrincipal) clauses.push(`(f."subgrupoPrincipalTitulo"=${pushParam(params, filtros.subgrupoPrincipal)} OR f."subgrupoPrincipalCodigo"=${pushParam(params, filtros.subgrupoPrincipal)})`)
+  if (filtros?.familia) clauses.push(`(f."familiaTitulo"=${pushParam(params, filtros.familia)} OR f."familiaCodigo"=${pushParam(params, filtros.familia)})`)
+  for (const palavra of separarTermos(filtros?.palavrasObrigatorias)) {
+    const p = pushParam(params, palavra)
+    clauses.push(`(immutable_unaccent(lower(${busca})) LIKE '%' || immutable_unaccent(lower(${p})) || '%' OR EXISTS (SELECT 1 FROM "SalarioCboSinonimo" sn WHERE sn."ocupacaoCbo"=o."cbo" AND immutable_unaccent(lower(sn."sinonimo")) LIKE '%' || immutable_unaccent(lower(${p})) || '%'))`)
+  }
+  for (const palavra of separarTermos(filtros?.palavrasExcluidas)) {
+    const p = pushParam(params, palavra)
+    clauses.push(`NOT (immutable_unaccent(lower(${busca})) LIKE '%' || immutable_unaccent(lower(${p})) || '%' OR EXISTS (SELECT 1 FROM "SalarioCboSinonimo" sn WHERE sn."ocupacaoCbo"=o."cbo" AND immutable_unaccent(lower(sn."sinonimo")) LIKE '%' || immutable_unaccent(lower(${p})) || '%'))`)
+  }
+  return clauses.length ? clauses.join(' AND ') : 'TRUE'
+}
+
 function separarTermos(valor?: string): string[] {
   return (valor || '').split(/[;,\n]+/).map((item) => item.trim()).filter(Boolean).slice(0, 10)
 }
@@ -206,14 +229,15 @@ export class SalariosService {
     const offset = (pagina - 1) * limite
 
     const whereParams: unknown[] = []
-    const whereSql = buildWhere(termo, filtros, whereParams)
+    const whereSql = termo ? buildOccupationWhere(termo, filtros, whereParams) : buildWhere(termo, filtros, whereParams)
 
     const cboRows = await prisma.$queryRawUnsafe<CboRow[]>(
       `
-        SELECT "cbo", max("titulo") AS titulo, max("grandeGrupoTitulo") AS "grandeGrupoTitulo", max("subgrupoPrincipalTitulo") AS "subgrupoPrincipalTitulo", max("familiaTitulo") AS "familiaTitulo", max("perfilOcupacional") AS "perfilOcupacional", max("fonte") AS fonte
-        FROM "SalarioCbo"
-        WHERE ${whereSql}
-        GROUP BY "cbo"
+        ${termo
+          ? 'SELECT o."cbo", f."cbo" AS "salarioCbo", max(o."titulo") AS titulo, max(f."grandeGrupoTitulo") AS "grandeGrupoTitulo", max(f."subgrupoPrincipalTitulo") AS "subgrupoPrincipalTitulo", max(f."familiaTitulo") AS "familiaTitulo", max(o."perfilOcupacional") AS "perfilOcupacional", max(f."fonte") AS fonte FROM "SalarioCboOcupacao" o JOIN "SalarioCbo" f ON f."cbo"=o."familiaCbo"'
+          : 'SELECT "cbo", "cbo" AS "salarioCbo", max("titulo") AS titulo, max("grandeGrupoTitulo") AS "grandeGrupoTitulo", max("subgrupoPrincipalTitulo") AS "subgrupoPrincipalTitulo", max("familiaTitulo") AS "familiaTitulo", max("perfilOcupacional") AS "perfilOcupacional", max("fonte") AS fonte FROM "SalarioCbo"'}
+        ${termo ? 'WHERE' : 'WHERE'} ${whereSql}
+        ${termo ? 'GROUP BY o."cbo", f."cbo"' : 'GROUP BY "cbo"'}
         LIMIT 3000
       `,
       ...whereParams,
@@ -265,7 +289,7 @@ export class SalariosService {
     const coluna = colunaDoAno(ano)
 
     const cboParams: unknown[] = []
-    const inSql = cboRows.map((row) => pushParam(cboParams, row.cbo)).join(', ')
+    const inSql = cboRows.map((row) => pushParam(cboParams, row.salarioCbo || row.cbo)).join(', ')
     let whereExtra = ''
     if (uf) {
       whereExtra = ` AND "uf" = ${pushParam(cboParams, uf)}`
@@ -299,7 +323,7 @@ export class SalariosService {
     const sinonimoParams: unknown[] = []
     const sinonimoInSql = cboRows.map((row) => pushParam(sinonimoParams, row.cbo)).join(', ')
     const sinonimoRows = await prisma.$queryRawUnsafe<SinonimoRow[]>(
-      `SELECT "cbo", "sinonimo" FROM "SalarioCboSinonimo" WHERE "cbo" IN (${sinonimoInSql}) ORDER BY "sinonimo"`,
+      `SELECT COALESCE("ocupacaoCbo", "cbo") AS "cbo", "sinonimo" FROM "SalarioCboSinonimo" WHERE ("cbo" IN (${sinonimoInSql}) OR "ocupacaoCbo" IN (${cboRows.map((row) => pushParam(sinonimoParams, row.cbo)).join(', ')})) ORDER BY "sinonimo"`,
       ...sinonimoParams,
     )
     const sinonimosPorCbo = new Map<number, string[]>()
@@ -314,7 +338,7 @@ export class SalariosService {
       const estatisticas = calcularEstatisticas(aplicarInpc ? corrigidos : valores)
       const estatisticasOriginal = aplicarInpc ? calcularEstatisticas(valores) : undefined
 
-      const percentis = corrigirPercentis(percentisPorCbo.get(c.cbo), aplicarInpc ? fatorInpc : 1)
+      const percentis = corrigirPercentis(percentisPorCbo.get(c.salarioCbo || c.cbo), aplicarInpc ? fatorInpc : 1)
       const sinonimos = sinonimosPorCbo.get(c.cbo) || []
       return {
         cbo: c.cbo,

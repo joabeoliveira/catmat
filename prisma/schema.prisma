@@ -82,6 +82,19 @@ model SalarioCbo {
   @@index([uf])
 }
 
+model SalarioCboOcupacao {
+  cbo              Int      @id
+  familiaCbo       Int
+  titulo           String
+  perfilOcupacional String?
+  fonte            String?
+  atualizadoEm     DateTime @default(now())
+
+  @@index([familiaCbo])
+  @@index([titulo])
+  @@map("SalarioCboOcupacao")
+}
+
 model SalarioCboHistorico {
   id          Int        @id @default(autoincrement())
   cbo         Int
@@ -120,6 +133,7 @@ model SalarioCboPercentil {
 model SalarioCboSinonimo {
   id                  Int     @id @default(autoincrement())
   cbo                 Int
+  ocupacaoCbo         Int?
   sinonimo            String
   sinonimoNormalizado String
   fonte               String?

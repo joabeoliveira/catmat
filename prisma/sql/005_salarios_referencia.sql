@@ -95,6 +95,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS "SalarioCbo_uf_cbo_key"
 CREATE INDEX IF NOT EXISTS salario_cbo_idx
   ON "SalarioCbo" ("cbo");
 
+-- Ocupações detalhadas da CBO (6 dígitos), relacionadas à família salarial (4 dígitos).
+CREATE TABLE IF NOT EXISTS "SalarioCboOcupacao" (
+  "cbo" INTEGER PRIMARY KEY,
+  "familiaCbo" INTEGER NOT NULL,
+  "titulo" TEXT NOT NULL,
+  "perfilOcupacional" TEXT,
+  "fonte" TEXT,
+  "atualizadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS salario_ocupacao_familia_idx ON "SalarioCboOcupacao" ("familiaCbo");
+CREATE INDEX IF NOT EXISTS salario_ocupacao_titulo_idx ON "SalarioCboOcupacao" USING gin (to_tsvector('portuguese', immutable_unaccent("titulo")));
+
+ALTER TABLE "SalarioCboSinonimo" ADD COLUMN IF NOT EXISTS "ocupacaoCbo" INTEGER;
+CREATE INDEX IF NOT EXISTS salario_sinonimo_ocupacao_idx ON "SalarioCboSinonimo" ("ocupacaoCbo");
+
 CREATE INDEX IF NOT EXISTS salario_uf_idx
   ON "SalarioCbo" ("uf");
 
