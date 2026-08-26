@@ -8,6 +8,7 @@ export interface DadosExportTcePr {
   filtros?: {
     cdIbge?: string
     municipio?: string
+    refinar?: string
     modalidade?: string
     anoLicitacao?: number
     dtHomologacaoInicio?: string

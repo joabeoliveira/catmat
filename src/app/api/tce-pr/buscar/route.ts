@@ -30,6 +30,7 @@ export async function GET(request: Request) {
       filtros: {
         cdIbge: searchParams.get('cdIbge') || undefined,
         municipio: searchParams.get('municipio') || undefined,
+        refinar: searchParams.get('refinar') || undefined,
         modalidade: searchParams.get('modalidade') || undefined,
         anoLicitacao: numberParam(searchParams.get('anoLicitacao')),
         dtHomologacaoInicio: searchParams.get('dtHomologacaoInicio') || undefined,

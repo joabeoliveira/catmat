@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       filtros: {
         cdIbge: body.filtros?.cdIbge || undefined,
         municipio: body.filtros?.municipio || undefined,
+        refinar: body.filtros?.refinar || undefined,
         modalidade: body.filtros?.modalidade || undefined,
         anoLicitacao: body.filtros?.anoLicitacao,
         dtHomologacaoInicio: body.filtros?.dtHomologacaoInicio || undefined,

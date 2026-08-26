@@ -84,6 +84,10 @@ function pushParam(params: unknown[], value: unknown) {
   return `$${params.length}`
 }
 
+function separarTermos(valor?: string): string[] {
+  return (valor || '').split(/[;,\n]+/).map((item) => item.trim()).filter(Boolean).slice(0, 10)
+}
+
 function buildWhere(termo: string, filtros: TcePrFiltros = {}, params: unknown[]) {
   const clauses: string[] = []
 
@@ -94,6 +98,11 @@ function buildWhere(termo: string, filtros: TcePrFiltros = {}, params: unknown[]
     partes.push(`similarity(immutable_unaccent(lower("dsItem")), immutable_unaccent(lower(${q}))) > 0.08`)
     partes.push(`immutable_unaccent(lower("dsItem")) LIKE '%' || immutable_unaccent(lower(${q})) || '%'`)
     clauses.push(`(${partes.join(' OR ')})`)
+  }
+
+  // Refinamento: cada palavra informada deve aparecer no descritivo do item (E-lógico)
+  for (const palavra of separarTermos(filtros.refinar)) {
+    clauses.push(`immutable_unaccent(lower("dsItem")) LIKE '%' || immutable_unaccent(lower(${pushParam(params, palavra)})) || '%'`)
   }
 
   if (filtros.cdIbge) clauses.push(`"cdIbge" = ${pushParam(params, filtros.cdIbge)}`)

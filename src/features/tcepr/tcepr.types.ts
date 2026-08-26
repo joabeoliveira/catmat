@@ -23,6 +23,8 @@ export interface TcePrFiltros {
   cdIbge?: string
   /** Nome do município (busca parcial). */
   municipio?: string
+  /** Palavras obrigatórias para refinar a busca no descritivo do item (todas devem aparecer). */
+  refinar?: string
   /** Modalidade da licitação (ex.: Pregão, Processo Dispensa). */
   modalidade?: string
   /** Ano da licitação. */
