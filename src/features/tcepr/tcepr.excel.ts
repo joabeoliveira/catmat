@@ -67,6 +67,7 @@ const CABECALHOS = [
   'Ano',
   'Forma de pagamento',
   'Prazo entrega (dias)',
+  'Link TCE-PR',
 ]
 
 function linhaDoItem(item: TcePrItem): (string | number | null)[] {
@@ -88,6 +89,7 @@ function linhaDoItem(item: TcePrItem): (string | number | null)[] {
     item.nrAnoLicitacao,
     item.dsFormaPagamento,
     item.nrPrazoLimiteEntrega,
+    item.linkTcePr,
   ]
 }
 
@@ -130,11 +132,21 @@ export function gerarPlanilhaTcePr(dados: DadosExportTcePr, resultado: TcePrBusc
   estilizarLinha(ws, 1, 0, 0, ESTILO_SECAO)
 
   // Formato moeda na coluna "Preço unitário homologado" (índice 9)
-  const larguraColunas = [60, 18, 34, 20, 12, 34, 18, 10, 12, 18, 12, 8, 8, 12, 8, 18, 14]
+  const larguraColunas = [60, 18, 34, 20, 12, 34, 18, 10, 12, 18, 12, 8, 8, 12, 8, 18, 14, 60]
   ws['!cols'] = larguraColunas.map((wch) => ({ wch }))
   for (let r = 4; r < linhas.length; r += 1) {
     const cell = ws[XLSX.utils.encode_cell({ r, c: 9 })]
     if (cell) cell.z = FORMATO_MOEDA
+  }
+
+  // Hiperlink na coluna "Link TCE-PR" (última coluna)
+  const colunaLink = CABECALHOS.length - 1
+  for (let r = 4; r < linhas.length; r += 1) {
+    const cell = ws[XLSX.utils.encode_cell({ r, c: colunaLink })]
+    if (cell && typeof cell.v === 'string' && cell.v) {
+      cell.l = { Target: cell.v, Tooltip: 'Abrir processo no TCE-PR' }
+      cell.s = { font: { color: { rgb: '0E7490' }, underline: true } }
+    }
   }
 
   const wb = XLSX.utils.book_new()

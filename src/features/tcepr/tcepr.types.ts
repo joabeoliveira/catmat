@@ -94,6 +94,8 @@ export interface TcePrItem {
   score: number
   /** Aderência 0–100 ao termo pesquisado. */
   compatibilidade: number
+  /** Link para o processo licitatório no portal TCE-PR (PIT). */
+  linkTcePr: string | null
 }
 
 export interface TcePrMetricas {

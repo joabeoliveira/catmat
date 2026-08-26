@@ -124,6 +124,22 @@ function buildWhere(termo: string, filtros: TcePrFiltros = {}, params: unknown[]
   return clauses.length ? clauses.join(' AND ') : 'TRUE'
 }
 
+const URL_BASE_TCEPR = 'https://pit.tce.pr.gov.br/Licitacao/LicitacaoDetalhes/Detalhes'
+
+function montarLinkTcePr(
+  idLicitacao: number | null | undefined,
+  idPessoa: number | null | undefined,
+  nrAnoLicitacao: number | null | undefined,
+): string | null {
+  if (idLicitacao == null || idPessoa == null || nrAnoLicitacao == null) return null
+  const params = new URLSearchParams({
+    IdLicitacao: String(idLicitacao),
+    IdEntidade: String(idPessoa),
+    NrAnoLicitacao: String(nrAnoLicitacao),
+  })
+  return `${URL_BASE_TCEPR}?${params.toString()}`
+}
+
 function buildOrder(ordenarPor: OrdenacaoTcePr, termo: string) {
   switch (ordenarPor) {
     case 'preco_asc':
@@ -183,6 +199,7 @@ function toItem(row: TcePrRow): TcePrItem {
     dataReferencia: row.dataReferencia,
     score: asNumber(row.score) ?? 0,
     compatibilidade: Math.max(0, Math.min(100, Math.round(Number(row.score || 0) * 100))),
+    linkTcePr: montarLinkTcePr(row.idLicitacao, row.idPessoa, row.nrAnoLicitacao),
   }
 }
 

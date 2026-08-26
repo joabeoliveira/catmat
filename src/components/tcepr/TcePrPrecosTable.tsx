@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, ExternalLink } from 'lucide-react'
 import type { TcePrItem, TcePrMetricas } from '@/features/tcepr/tcepr.types'
 
 interface Props {
@@ -119,8 +119,20 @@ export function TcePrPrecosTable({ items, metricas }: Props) {
                 </div>
                 <div className="min-w-0 sm:col-span-2">
                   <dt className="text-xs text-slate-500">Id da licitação</dt>
-                  <dd className="flex items-center gap-1 font-mono text-xs">
-                    {item.idLicitacao}
+                  <dd className="flex items-center gap-1">
+                    {item.linkTcePr ? (
+                      <a
+                        href={item.linkTcePr}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Ver processo licitatório no TCE-PR"
+                        aria-label="Ver processo licitatório no TCE-PR"
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded p-1 text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : null}
+                    <span className="font-mono text-xs">{item.idLicitacao}</span>
                     <button
                       type="button"
                       onClick={() => void copiarId(item.idLicitacao)}
@@ -202,6 +214,18 @@ export function TcePrPrecosTable({ items, metricas }: Props) {
                       >
                         {copiadoId === item.idLicitacao ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
+                      {item.linkTcePr ? (
+                        <a
+                          href={item.linkTcePr}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Ver processo licitatório no TCE-PR"
+                          aria-label="Ver processo licitatório no TCE-PR"
+                          className="rounded p-1 text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
