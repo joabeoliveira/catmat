@@ -334,7 +334,8 @@ async function main() {
     if (minioFiles.length) {
       inputPaths = minioFiles.map((file) => file.local)
       tempFiles = minioFiles
-      console.log(`📦 ${minioFiles.length} XML(s) baixado(s) do MinIO (bucket ${minioFiles[0].key.split('/')[0]})`)
+      console.log(`📦 ${minioFiles.length} XML(s) encontrado(s) no MinIO (bucket ${process.env.MINIO_TCEPR_BUCKET || 'tcepr'}):`)
+      for (const file of minioFiles) console.log(`   - ${file.key}`)
     } else {
       // Preferência local: data/tcepr/*.xml; fallback: data/*_LicitacaoVencedor.xml
       inputPaths = listarXmlsDaPasta(defaultDir)
@@ -346,10 +347,11 @@ async function main() {
   }
 
   if (!inputPaths.length) {
+    const temMinio = Boolean(process.env.MINIO_ENDPOINT && process.env.MINIO_ACCESS_KEY && process.env.MINIO_SECRET_KEY)
     throw new Error(
-      'Nenhum arquivo XML encontrado.\n' +
-      'Passe a pasta/arquivo como argumento (ex.: npm run import:tcepr -- dados/tcepr)\n' +
-      'ou configure MINIO_ENDPOINT/MINIO_ACCESS_KEY/MINIO_SECRET_KEY para baixar do bucket tcepr.',
+      temMinio
+        ? `Nenhum arquivo XML encontrado no bucket '${process.env.MINIO_TCEPR_BUCKET || 'tcepr'}' (prefixo '${process.env.MINIO_TCEPR_PREFIX || '2026/'}'). Confira se os arquivos foram enviados ao MinIO (console ou mc) ou passe um caminho local: npm run import:tcepr -- data`
+        : 'Nenhum arquivo XML encontrado. Configure MINIO_ENDPOINT/MINIO_ACCESS_KEY/MINIO_SECRET_KEY ou passe a pasta/arquivo como argumento (ex.: npm run import:tcepr -- data).',
     )
   }
 
