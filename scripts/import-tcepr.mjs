@@ -321,7 +321,13 @@ async function main() {
     throw new Error('DATABASE_URL nao esta definida.')
   }
 
-  const batchSize = Number(process.env.TCEPR_IMPORT_BATCH_SIZE || 1000)
+  // Limite do PostgreSQL: no máximo 32767 parâmetros por prepared statement.
+  // Com 34 colunas, o teto é ~963 linhas/batch — clamp automático evita o erro P2035.
+  const maxLinhasPorBatch = Math.floor(32767 / COLS.length)
+  const batchSize = Math.min(
+    Math.max(100, Number(process.env.TCEPR_IMPORT_BATCH_SIZE || 900)),
+    maxLinhasPorBatch,
+  )
 
   let inputPaths = []
   let tempFiles = []
