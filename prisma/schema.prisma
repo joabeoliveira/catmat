@@ -218,3 +218,68 @@ model CompraItem {
   @@index([dataAtualizacaoFato])
   @@map("compras_item")
 }
+
+// Licitações municipais homologadas no TCE-PR (carga XML — preços de referência)
+model LicitacaoVencedorTcePr {
+  id                     Int       @id @default(autoincrement())
+
+  // Dados da entidade e município
+  cdIbge                 String?
+  nmMunicipio            String
+  idPessoa               Int?
+  nmEntidade             String
+
+  // Dados do processo licitatório
+  idLicitacao            Int
+  nrAnoLicitacao         Int
+  nrLicitacao            Int
+  dsModalidadeLicitacao  String
+  dtHomologacao          DateTime?
+
+  // Fornecedor / proponente
+  nrDocumento            String
+  nmPessoa               String
+
+  // Dados do item e proposta
+  nrLote                 Int       @default(1)
+  nrItem                 Int
+  dsItem                 String    @db.Text
+  idUnidadeMedida        Int?
+  dsUnidadeMedida        String?
+  nrQuantidade           Float?
+
+  // Valores de referência (mínimo / máximo do item)
+  vlMinimoUnitarioItem   Float?
+  vlMinimoTotal          Float?
+  vlMaximoUnitarioItem   Float?
+  vlMaximoTotal          Float?
+
+  // Valores da proposta e do vencedor
+  nrQuantidadeProposta   Float?
+  vlPropostaItem         Float?
+  nrQuantidadeVencedor   Float?
+  vlLicitacaoVencedor    Float?
+  nrClassificacao        Int
+
+  // Condições comerciais e prazos
+  dsFormaPagamento       String?
+  nrPrazoLimiteEntrega   Int?
+  idTipoEntregaProduto   Int?
+  dsTipoEntregaProduto   String?
+  dtValidadeProposta     DateTime?
+  dtPrazoEntregaProposta DateTime?
+
+  // Controle SIMAM / TCE-PR
+  ultimoEnvioSimam       String?
+  dataReferencia         String?
+  importadoEm            DateTime  @default(now())
+
+  busca_tsv              Unsupported("tsvector")?
+
+  @@unique([idLicitacao, nrLote, nrItem, nrDocumento, nrClassificacao])
+  @@index([cdIbge, nrAnoLicitacao])
+  @@index([nrDocumento])
+  @@index([dtHomologacao])
+  @@index([idLicitacao])
+  @@index([dsModalidadeLicitacao])
+}

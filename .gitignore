@@ -45,6 +45,12 @@ coverage/
 
 # Dados CSV (já populados no banco, muito grandes para Git)
 dados/*.csv
+data/*.csv
+
+# XMLs TCE-PR (arquivos pesados, não versionar)
+dados/tcepr/*.xml
+data/*.xml
+data/tcepr/*.xml
 
 # Arquivos compactados de deploy
 *.zip

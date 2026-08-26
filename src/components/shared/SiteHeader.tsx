@@ -25,6 +25,7 @@ export function SiteHeader() {
     ['/nfe', 'NF-e'],
     ['/bps', 'BPS'],
     ['/salarios', 'Salários'],
+    ['/tce-pr', 'TCE-PR'],
   ] as const
 
   return (
