@@ -366,8 +366,8 @@ export function SalariosSearch() {
             }}
             className="space-y-4"
           >
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <div className="relative flex-1">
+            <div className="space-y-3">
+              <div className="relative w-full">
                 <Input
                   aria-label="Buscar ocupação ou CBO"
                   value={termo}
