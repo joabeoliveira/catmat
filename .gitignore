@@ -37,6 +37,9 @@ pnpm-debug.log*
 # Prisma
 prisma/migrations/
 
+# Artefato de build do TypeScript
+tsconfig.tsbuildinfo
+
 # Test coverage
 coverage/
 

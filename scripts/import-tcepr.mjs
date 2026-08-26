@@ -200,10 +200,18 @@ async function listarXmlsDoMinio() {
     credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
   })
 
-  const listed = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }))
-  const keys = (listed.Contents || [])
-    .map((object) => object.Key)
-    .filter((key) => key && key.toLowerCase().endsWith('.xml'))
+  const listar = async (p) => {
+    const listed = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: p }))
+    return (listed.Contents || [])
+      .map((object) => object.Key)
+      .filter((key) => key && key.toLowerCase().endsWith('.xml'))
+  }
+
+  let keys = await listar(prefix)
+  // Se o prefixo padrão '2026/' não retornar nada (arquivos na raiz do bucket), varre tudo.
+  if (!keys.length && !process.env.MINIO_TCEPR_PREFIX) {
+    keys = await listar('')
+  }
 
   const files = []
   for (const key of keys) {
@@ -231,6 +239,34 @@ async function ensureSchema() {
   for (const statement of splitSqlStatements(sql)) {
     await prisma.$executeRawUnsafe(statement)
   }
+}
+
+// Se a coluna busca_tsv existir como coluna COMUM (ex.: criada antes por `prisma db push`),
+// o ADD COLUMN IF NOT EXISTS ... GENERATED do SQL vira no-op e a busca FTS não funciona.
+// Recria como coluna gerada (DROP + ADD) e regenera o índice GIN. Idempotente.
+async function garantirBuscaTsv() {
+  const rows = await prisma.$queryRawUnsafe(
+    `SELECT is_generated FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'LicitacaoVencedorTcePr' AND column_name = 'busca_tsv'`,
+  )
+  const coluna = rows[0]
+  if (!coluna || coluna.is_generated === 'ALWAYS') return
+
+  await prisma.$executeRawUnsafe(`ALTER TABLE "LicitacaoVencedorTcePr" DROP COLUMN IF EXISTS busca_tsv`)
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "LicitacaoVencedorTcePr"
+    ADD COLUMN busca_tsv tsvector GENERATED ALWAYS AS (
+      setweight(to_tsvector('portuguese', immutable_unaccent(coalesce("dsItem", ''))), 'A') ||
+      setweight(to_tsvector('portuguese', immutable_unaccent(coalesce("nmMunicipio", ''))), 'B') ||
+      setweight(to_tsvector('portuguese', immutable_unaccent(coalesce("nmEntidade", ''))), 'C') ||
+      setweight(to_tsvector('portuguese', immutable_unaccent(coalesce("nmPessoa", ''))), 'C') ||
+      setweight(to_tsvector('portuguese', immutable_unaccent(coalesce("dsModalidadeLicitacao", ''))), 'C')
+    ) STORED
+  `)
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS tcepr_busca_tsv_idx ON "LicitacaoVencedorTcePr" USING gin ("busca_tsv")`,
+  )
+  console.log('⚠️ busca_tsv recriada como coluna gerada (antes existia como coluna comum).')
 }
 
 // ---------- Inserção (upsert pela chave única) ----------
@@ -318,6 +354,7 @@ async function main() {
   }
 
   await ensureSchema()
+  await garantirBuscaTsv()
 
   let imported = 0
   let skipped = 0
