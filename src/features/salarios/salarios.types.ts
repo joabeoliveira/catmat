@@ -138,6 +138,9 @@ export interface SalarioDetalheResponse {
 
 export interface SalarioHierarquiaOpcao {
   grandeGrupo: string
+  grandeGrupoCodigo?: string
   subgrupoPrincipal: string
+  subgrupoPrincipalCodigo?: string
   familia: string
+  familiaCodigo?: string
 }

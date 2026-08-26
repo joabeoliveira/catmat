@@ -319,9 +319,9 @@ export function SalariosSearch() {
     }
   }
 
-  const grandesGrupos = Array.from(new Set(hierarquia.map((item) => item.grandeGrupo))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  const subgrupos = Array.from(new Set(hierarquia.filter((item) => !grandeGrupo || item.grandeGrupo === grandeGrupo).map((item) => item.subgrupoPrincipal))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  const familias = Array.from(new Set(hierarquia.filter((item) => (!grandeGrupo || item.grandeGrupo === grandeGrupo) && (!subgrupoPrincipal || item.subgrupoPrincipal === subgrupoPrincipal)).map((item) => item.familia))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const grandesGrupos = Array.from(new Map(hierarquia.map((item) => [item.grandeGrupo, item])).values()).sort((a, b) => a.grandeGrupo.localeCompare(b.grandeGrupo, 'pt-BR'))
+  const subgrupos = Array.from(new Map(hierarquia.filter((item) => !grandeGrupo || item.grandeGrupo === grandeGrupo).map((item) => [item.subgrupoPrincipal, item])).values()).sort((a, b) => a.subgrupoPrincipal.localeCompare(b.subgrupoPrincipal, 'pt-BR'))
+  const familias = Array.from(new Map(hierarquia.filter((item) => (!grandeGrupo || item.grandeGrupo === grandeGrupo) && (!subgrupoPrincipal || item.subgrupoPrincipal === subgrupoPrincipal)).map((item) => [item.familia, item])).values()).sort((a, b) => a.familia.localeCompare(b.familia, 'pt-BR'))
   const filtrosAtivos = [grandeGrupo, subgrupoPrincipal, familia, palavrasObrigatorias, palavrasExcluidas, salarioMinimo, salarioMaximo, minimoUfs].filter(Boolean).length
 
   function limparFiltrosAvancados() {
@@ -472,13 +472,13 @@ export function SalariosSearch() {
               </div>
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 <label className="text-sm text-slate-700 dark:text-slate-300">Grande grupo
-                  <select value={grandeGrupo} onChange={(event) => { setGrandeGrupo(event.target.value); setSubgrupoPrincipal(''); setFamilia('') }} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="">Todos</option>{grandesGrupos.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                  <select value={grandeGrupo} onChange={(event) => { setGrandeGrupo(event.target.value); setSubgrupoPrincipal(''); setFamilia('') }} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="">Todos</option>{grandesGrupos.map((item) => <option key={item.grandeGrupo} value={item.grandeGrupo}>{item.grandeGrupoCodigo ? `${item.grandeGrupoCodigo} — ` : ''}{item.grandeGrupo}</option>)}</select>
                 </label>
                 <label className="text-sm text-slate-700 dark:text-slate-300">Subgrupo principal
-                  <select value={subgrupoPrincipal} onChange={(event) => { setSubgrupoPrincipal(event.target.value); setFamilia('') }} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="">Todos</option>{subgrupos.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                  <select value={subgrupoPrincipal} onChange={(event) => { setSubgrupoPrincipal(event.target.value); setFamilia('') }} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="">Todos</option>{subgrupos.map((item) => <option key={item.subgrupoPrincipal} value={item.subgrupoPrincipal}>{item.subgrupoPrincipalCodigo ? `${item.subgrupoPrincipalCodigo} — ` : ''}{item.subgrupoPrincipal}</option>)}</select>
                 </label>
-                <label className="text-sm text-slate-700 dark:text-slate-300">Família ocupacional
-                  <select value={familia} onChange={(event) => setFamilia(event.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="">Todas</option>{familias.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+                <label className="text-sm text-slate-700 dark:text-slate-300">Família ocupacional (4 dígitos)
+                  <select value={familia} onChange={(event) => setFamilia(event.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"><option value="">Todas</option>{familias.map((item) => <option key={item.familia} value={item.familiaCodigo || item.familia}>{item.familiaCodigo ? `${item.familiaCodigo} — ` : ''}{item.familia}</option>)}</select>
                 </label>
                 <label className="text-sm text-slate-700 dark:text-slate-300">Palavras que devem aparecer
                   <Input value={palavrasObrigatorias} onChange={(event) => setPalavrasObrigatorias(event.target.value)} placeholder="ex.: aeroporto, limpeza" className="mt-1" />

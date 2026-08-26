@@ -79,13 +79,13 @@ function buildWhere(termo: string, filtros: SalarioBuscaParams['filtros'], param
   }
 
   if (filtros?.grandeGrupo) {
-    clauses.push(`("grandeGrupoTitulo" = ${pushParam(params, filtros.grandeGrupo)})`)
+    clauses.push(`("grandeGrupoTitulo" = ${pushParam(params, filtros.grandeGrupo)} OR "grandeGrupoCodigo" = ${pushParam(params, filtros.grandeGrupo)})`)
   }
   if (filtros?.subgrupoPrincipal) {
-    clauses.push(`("subgrupoPrincipalTitulo" = ${pushParam(params, filtros.subgrupoPrincipal)})`)
+    clauses.push(`("subgrupoPrincipalTitulo" = ${pushParam(params, filtros.subgrupoPrincipal)} OR "subgrupoPrincipalCodigo" = ${pushParam(params, filtros.subgrupoPrincipal)})`)
   }
   if (filtros?.familia) {
-    clauses.push(`("familiaTitulo" = ${pushParam(params, filtros.familia)})`)
+    clauses.push(`("familiaTitulo" = ${pushParam(params, filtros.familia)} OR "familiaCodigo" = ${pushParam(params, filtros.familia)})`)
   }
 
   const campoBusca = `concat_ws(' ', "titulo", "grandeGrupoTitulo", "subgrupoPrincipalTitulo", "familiaTitulo", "perfilOcupacional")`
@@ -373,7 +373,7 @@ export class SalariosService {
   /** Hierarquia oficial disponível para os filtros ocupacionais. */
   async listarHierarquia(): Promise<SalarioHierarquiaOpcao[]> {
     return prisma.$queryRawUnsafe<SalarioHierarquiaOpcao[]>(
-      `SELECT DISTINCT "grandeGrupoTitulo" AS "grandeGrupo", "subgrupoPrincipalTitulo" AS "subgrupoPrincipal", "familiaTitulo" AS "familia" FROM "SalarioCbo" WHERE "grandeGrupoTitulo" IS NOT NULL AND "subgrupoPrincipalTitulo" IS NOT NULL AND "familiaTitulo" IS NOT NULL ORDER BY 1, 2, 3`,
+      `SELECT DISTINCT "grandeGrupoCodigo" AS "grandeGrupoCodigo", "grandeGrupoTitulo" AS "grandeGrupo", "subgrupoPrincipalCodigo" AS "subgrupoPrincipalCodigo", "subgrupoPrincipalTitulo" AS "subgrupoPrincipal", "familiaCodigo" AS "familiaCodigo", "familiaTitulo" AS "familia" FROM "SalarioCbo" WHERE "grandeGrupoTitulo" IS NOT NULL AND "subgrupoPrincipalTitulo" IS NOT NULL AND "familiaTitulo" IS NOT NULL ORDER BY 2, 4, 6`,
     )
   }
 
