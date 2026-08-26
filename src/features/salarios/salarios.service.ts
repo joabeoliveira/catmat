@@ -183,7 +183,11 @@ function enriquecerCard(item: SalarioCard, termo: string): SalarioCard {
     : null
   const confianca = item.ufCount >= 20 ? 'alta' : item.ufCount >= 10 ? 'media' : 'baixa'
 
-  return { ...item, correspondencia, qualidade: { confianca, amplitude, amplitudePercentual } }
+  const tituloOficial = item.titulo
+  const tituloEscolhido = correspondencia.tipo === 'sinonimo' && correspondencia.termoEncontrado
+    ? correspondencia.termoEncontrado
+    : item.titulo
+  return { ...item, titulo: tituloEscolhido, tituloOficial: tituloEscolhido !== tituloOficial ? tituloOficial : undefined, correspondencia, qualidade: { confianca, amplitude, amplitudePercentual } }
 }
 
 function corrigirPercentis(percentis: SalarioPercentis | undefined, fator: number): SalarioPercentis | undefined {

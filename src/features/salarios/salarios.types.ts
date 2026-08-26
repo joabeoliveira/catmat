@@ -44,6 +44,7 @@ export interface EstatisticasSalario {
 export interface SalarioCard {
   cbo: number
   titulo: string
+  tituloOficial?: string
   ufCount: number
   /** Valores exibidos (corrigidos pelo INPC quando aplicarInpc=true). */
   estatisticas: EstatisticasSalario

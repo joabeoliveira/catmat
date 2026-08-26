@@ -63,6 +63,7 @@ function CardSalario({ item, aplicarInpc, adicionar, comparar, selecionado }: { 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="font-medium text-slate-900 dark:text-white">{item.titulo}</p>
+            {item.tituloOficial ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Título oficial CBO: {item.tituloOficial}</p> : null}
             {item.hierarquia?.familia || item.hierarquia?.grandeGrupo ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{[item.hierarquia.grandeGrupo, item.hierarquia.subgrupoPrincipal, item.hierarquia.familia].filter(Boolean).join(' · ')}</p> : null}
           </div>
           <div className="flex flex-wrap gap-2">
