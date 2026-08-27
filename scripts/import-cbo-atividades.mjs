@@ -156,8 +156,18 @@ async function ensureSchema() {
 async function insertBatch(batch) {
   if (!batch.length) return 0
 
+  // O arquivo de perfil pode repetir a mesma atividade para a mesma
+  // combinação CBO + grande área + código. PostgreSQL não aceita que um
+  // único INSERT faça UPDATE da mesma chave de conflito mais de uma vez.
+  const unicas = new Map()
+  for (const row of batch) {
+    const chave = `${row.cbo}\u0000${row.siglaGrandeArea}\u0000${row.codigoAtividade}`
+    unicas.set(chave, row)
+  }
+  const rows = Array.from(unicas.values())
+
   const values = []
-  const tuples = batch.map((row, rowIndex) => {
+  const tuples = rows.map((row, rowIndex) => {
     const placeholders = COLUNAS.map((column, columnIndex) => {
       values.push(row[column] ?? null)
       return `$${rowIndex * COLUNAS.length + columnIndex + 1}`
@@ -178,7 +188,7 @@ async function insertBatch(batch) {
   `
 
   await prisma.$executeRawUnsafe(sql, ...values)
-  return batch.length
+  return rows.length
 }
 
 // ---------- Main ----------
