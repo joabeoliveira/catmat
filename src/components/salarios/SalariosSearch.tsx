@@ -731,7 +731,7 @@ export function SalariosSearch() {
           ))}
 
           {grade.length ? <Card>
-            <CardHeader><CardTitle>Grade de postos ({grade.length} funções · {grade.reduce((total, linha) => total + linha.quantidade, 0)} postos)</CardTitle><CardDescription>Defina a quantidade e o salário mensal que será usado como referência na formação de preços.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Grade de postos ({grade.length} funções · {grade.reduce((total, linha) => total + linha.quantidade, 0)} postos)</CardTitle><CardDescription>Defina quantidade e salário. A exportação gera resumo consolidado, parâmetros, fórmulas, uma aba por função e as atividades selecionadas.</CardDescription></CardHeader>
             <CardContent className="space-y-2">
               {grade.map((linha) => <div key={linha.cbo} className="grid gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 lg:grid-cols-[minmax(0,1fr)_110px_230px_180px_44px] lg:items-end">
                 <div className="min-w-0"><strong>{linha.cbo}</strong> · {linha.titulo}<div className="text-xs text-slate-500">Faixa inferior (P25): {formatarMoeda(linha.percentis?.p25 ?? null)} · valor central (mediana): {formatarMoeda(linha.estatisticas.mediana)} · faixa superior (P75): {formatarMoeda(linha.percentis?.p75 ?? null)}</div>{linha.atividadesSelecionadas?.length ? <div className="mt-1 text-xs text-cyan-700 dark:text-cyan-300">Atividades ({linha.atividadesSelecionadas.length}): {linha.atividadesSelecionadas.slice(0, 4).join('; ')}{linha.atividadesSelecionadas.length > 4 ? '…' : ''}</div> : null}</div>
@@ -755,7 +755,7 @@ export function SalariosSearch() {
                 </label>
                 <button type="button" aria-label={`Remover ${linha.titulo} da grade`} onClick={() => removerDaGrade(linha.cbo)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-slate-500 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>
               </div>)}
-              <div className="flex justify-end pt-2"><Button type="button" onClick={exportar} disabled={exportando}><Download className="mr-2 h-4 w-4" />{exportando ? 'Gerando...' : 'Exportar grade para formação de preços'}</Button></div>
+              <div className="flex justify-end pt-2"><Button type="button" onClick={exportar} disabled={exportando}><Download className="mr-2 h-4 w-4" />{exportando ? 'Gerando...' : 'Gerar planilha de custos por posto'}</Button></div>
             </CardContent>
           </Card> : null}
 
