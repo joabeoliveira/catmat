@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 import type {
   CriterioSalarioGrade,
   SalarioBuscaResponse,
@@ -35,6 +35,12 @@ const FONTE_SALARIAL = 'Referências salariais por CBO e UF — COGED e RAIS/MTE
 const FONTE_INPC = 'INPC/IBGE, consultado pela série 188 do Sistema Gerenciador de Séries Temporais do Banco Central do Brasil (SGS/BCB).'
 const FORMATO_MOEDA = 'R$ #,##0.00;[Red]-R$ #,##0.00;R$ 0.00'
 const FORMATO_PERCENTUAL = '0.00%'
+const BORDA_FINA = {
+  top: { style: 'thin', color: { rgb: '7F8C8D' } },
+  bottom: { style: 'thin', color: { rgb: '7F8C8D' } },
+  left: { style: 'thin', color: { rgb: '7F8C8D' } },
+  right: { style: 'thin', color: { rgb: '7F8C8D' } },
+}
 
 const PARAMETROS_PADRAO = {
   mesesContrato: 12,
@@ -97,27 +103,34 @@ const CELULAS_PARAMETROS = {
 } as const
 
 const ESTILO_TITULO = {
-  fill: { fgColor: { rgb: '0F172A' } },
+  fill: { patternType: 'solid', fgColor: { rgb: '1F4E78' } },
   font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 16 },
-  alignment: { vertical: 'center', wrapText: true },
+  alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+  border: BORDA_FINA,
 }
 const ESTILO_CABECALHO = {
-  fill: { fgColor: { rgb: '0E7490' } },
+  fill: { patternType: 'solid', fgColor: { rgb: '4472C4' } },
   font: { bold: true, color: { rgb: 'FFFFFF' } },
-  alignment: { vertical: 'center', wrapText: true },
+  alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+  border: BORDA_FINA,
 }
 const ESTILO_SECAO = {
-  fill: { fgColor: { rgb: 'CFFAFE' } },
-  font: { bold: true, color: { rgb: '164E63' } },
+  fill: { patternType: 'solid', fgColor: { rgb: 'D9EAF7' } },
+  font: { bold: true, color: { rgb: '1F4E78' } },
   alignment: { vertical: 'center', wrapText: true },
+  border: BORDA_FINA,
 }
 const ESTILO_ENTRADA = {
-  fill: { fgColor: { rgb: 'FFF7CC' } },
+  fill: { patternType: 'solid', fgColor: { rgb: 'FFF2CC' } },
   font: { color: { rgb: '0000FF' } },
+  alignment: { vertical: 'center', wrapText: true },
+  border: BORDA_FINA,
 }
 const ESTILO_TOTAL = {
-  fill: { fgColor: { rgb: 'E2E8F0' } },
-  font: { bold: true, color: { rgb: '0F172A' } },
+  fill: { patternType: 'solid', fgColor: { rgb: 'D9E2F3' } },
+  font: { bold: true, color: { rgb: '1F1F1F' } },
+  alignment: { vertical: 'center', wrapText: true },
+  border: BORDA_FINA,
 }
 
 function formatarMoeda(valor: number | null | undefined): string {
@@ -127,7 +140,40 @@ function formatarMoeda(valor: number | null | undefined): string {
 
 function aplicarEstilo(ws: XLSX.WorkSheet, endereco: string, estilo: object) {
   const cell = ws[endereco]
-  if (cell) cell.s = estilo
+  if (cell) cell.s = { ...(cell.s || {}), ...estilo }
+}
+
+function finalizarEstetica(ws: XLSX.WorkSheet) {
+  if (!ws['!ref']) return
+  const range = XLSX.utils.decode_range(ws['!ref'])
+  const merges = ws['!merges'] || []
+  const ultimaColuna = merges.reduce((maior, merge) => Math.max(maior, merge.e.c), range.e.c)
+  ws['!rows'] = ws['!rows'] || []
+
+  for (let r = range.s.r; r <= range.e.r; r += 1) {
+    const linhaTemConteudo = Array.from({ length: ultimaColuna - range.s.c + 1 }, (_, offset) => {
+      const cell = ws[XLSX.utils.encode_cell({ r, c: range.s.c + offset })]
+      return cell && cell.v !== null && cell.v !== undefined && String(cell.v) !== ''
+    }).some(Boolean)
+    const alturaAtual = ws['!rows'][r]?.hpt || 0
+    ws['!rows'][r] = { ...(ws['!rows'][r] || {}), hpt: Math.max(alturaAtual, linhaTemConteudo ? 22 : 10) }
+    if (!linhaTemConteudo) continue
+
+    for (let c = range.s.c; c <= ultimaColuna; c += 1) {
+      const endereco = XLSX.utils.encode_cell({ r, c })
+      const cell = ws[endereco] || ({ t: 's', v: '' } as XLSX.CellObject)
+      const estiloAtual = cell.s || {}
+      cell.s = {
+        ...estiloAtual,
+        font: { name: 'Arial', sz: 10, ...(estiloAtual.font || {}) },
+        alignment: { vertical: 'center', wrapText: true, ...(estiloAtual.alignment || {}) },
+        border: estiloAtual.border || BORDA_FINA,
+      }
+      ws[endereco] = cell
+    }
+  }
+  ws['!ref'] = XLSX.utils.encode_range({ s: range.s, e: { r: range.e.r, c: ultimaColuna } })
+  ws['!margins'] = { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 }
 }
 
 function estilizarLinha(ws: XLSX.WorkSheet, linha: number, primeiraColuna: number, ultimaColuna: number, estilo: object) {
@@ -217,6 +263,7 @@ function criarApresentacao(dados: DadosExportSalarios, resultado: SalarioBuscaRe
   estilizarLinha(ws, 3, 0, 5, ESTILO_SECAO)
   estilizarLinha(ws, 12, 0, 5, ESTILO_SECAO)
   estilizarLinha(ws, 18, 0, 5, ESTILO_SECAO)
+  finalizarEstetica(ws)
   return ws
 }
 
@@ -287,6 +334,7 @@ function criarPlanilhaCustos(grade: SalarioGradeItem[]) {
   }
   definirFormato(ws, rows.length, [4, 6, 7, 8, 9, 10], FORMATO_MOEDA, 13)
   definirFormato(ws, rows.length, [5], FORMATO_PERCENTUAL, 13)
+  finalizarEstetica(ws)
   return ws
 }
 
@@ -435,6 +483,7 @@ function criarParametros() {
   definirFormato(ws, rows.length, [1], FORMATO_PERCENTUAL, 7)
   if (ws.B5) ws.B5.z = '#,##0'
   ws['!freeze'] = { xSplit: 0, ySplit: 4 }
+  finalizarEstetica(ws)
   return ws
 }
 
@@ -706,8 +755,12 @@ function criarAbaPosto(item: SalarioGradeItem, indice: number): { ws: XLSX.WorkS
   for (const linha of [...linhasBeneficios, ...linhasInsumos]) {
     if (ws[`C${linha}`]) ws[`C${linha}`].z = '#,##0.00'
   }
+  for (const linha of [linhaModulo1, linhaModulo21, linhaModulo22, linhaModulo23, linhaModulo2, linhaModulo3, linhaModulo4, linhaModulo5, linhaSubtotal, linhaTributos, linhaValorEmpregado, linhaValorMensal, linhaValorContrato]) {
+    estilizarLinha(ws, linha - 1, 0, 4, ESTILO_TOTAL)
+  }
   ws['!freeze'] = { xSplit: 0, ySplit: 4 }
   ws['!autofilter'] = { ref: `A${atividadesSecao + 1}:B${atividadesSecao + 1 + Math.max(1, atividades.length)}` }
+  finalizarEstetica(ws)
   return {
     ws,
     meta: { nome, item, linhaSalario, linhaValorEmpregado, linhaValorMensal, linhaValorContrato, totais },
@@ -784,6 +837,8 @@ function criarResumoPostos(metadados: MetadadosAbaPosto[]) {
   definirFormato(ws, rows.length, [4, 5, 6, 8], FORMATO_MOEDA, 6)
   ws['!autofilter'] = { ref: `A6:K${Math.max(6, fimDados)}` }
   ws['!freeze'] = { xSplit: 0, ySplit: 6 }
+  estilizarLinha(ws, linhaTotais - 1, 0, 10, ESTILO_TOTAL)
+  finalizarEstetica(ws)
   return ws
 }
 
@@ -837,6 +892,7 @@ function criarReferencias(dados: DadosExportSalarios, resultado: SalarioBuscaRes
   estilizarLinha(ws, 0, 0, 11, ESTILO_TITULO)
   estilizarLinha(ws, 3, 0, 11, ESTILO_CABECALHO)
   definirFormato(ws, rows.length, [4, 5, 6, 7, 8, 9], FORMATO_MOEDA, 4)
+  finalizarEstetica(ws)
   return ws
 }
 
@@ -867,6 +923,7 @@ function criarPerfis(resultado: SalarioBuscaResponse) {
   ws['!autofilter'] = { ref: `A4:H${Math.max(4, rows.length)}` }
   estilizarLinha(ws, 0, 0, 7, ESTILO_TITULO)
   estilizarLinha(ws, 3, 0, 7, ESTILO_CABECALHO)
+  finalizarEstetica(ws)
   return ws
 }
 
@@ -905,6 +962,7 @@ function criarFontesMetodologia(dados: DadosExportSalarios, resultado: SalarioBu
   estilizarLinha(ws, 2, 0, 5, ESTILO_SECAO)
   estilizarLinha(ws, 7, 0, 5, ESTILO_SECAO)
   estilizarLinha(ws, 14, 0, 5, ESTILO_SECAO)
+  finalizarEstetica(ws)
   return ws
 }
 
