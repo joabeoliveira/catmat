@@ -1,12 +1,12 @@
 // scripts/import-cbo-atividades.mjs
-// Importa as atividades do perfil ocupacional (CBO 2002) a partir do CSV cbo_perfilocupacional.csv.
+// Importa as atividades do perfil ocupacional (CBO 2002) a partir do CSV cbo2002-perfilocupacional.csv.
 // Fontes do CSV (em ordem de prioridade):
-//   1. Caminho local passado como argumento: npm run import:cbo-atividades -- data/cbo_perfilocupacional.csv
+//   1. Caminho local passado como argumento: npm run import:cbo-atividades -- dados/salarios/cbo2002-perfilocupacional.csv
 //   2. MinIO (produção) quando MINIO_ENDPOINT/MINIO_ACCESS_KEY/MINIO_SECRET_KEY existirem:
 //      npm run import:cbo-atividades
 //   3. Fallback: data/cbo_perfilocupacional.csv
 //
-// Formato do CSV: separador vírgula + aspas; colunas:
+// Formato do CSV: separador ponto e vírgula; colunas:
 // COD_GRANDE_GRUPO,COD_SUBGRUPO_PRINCIPAL,COD_SUBGRUPO,COD_FAMILIA,COD_OCUPACAO,
 // SGL_GRANDE_AREA,NOME_GRANDE_AREA,COD_ATIVIDADE,NOME_ATIVIDADE
 import fs from 'node:fs'
@@ -19,7 +19,7 @@ import { PrismaClient } from '@prisma/client'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
-const defaultFile = path.join(rootDir, 'data', 'cbo_perfilocupacional.csv')
+const defaultFile = path.join(rootDir, 'dados', 'salarios', 'cbo2002-perfilocupacional.csv')
 const setupSqlPath = path.join(rootDir, 'prisma', 'sql', '007_cbo_atividades_referencia.sql')
 
 const prisma = new PrismaClient()
@@ -38,7 +38,7 @@ const COLUNAS = [
   'fonte',
 ]
 
-// ---------- Parser CSV (delimitador vírgula + aspas) ----------
+// ---------- Parser CSV (delimitador ponto e vírgula + aspas) ----------
 function parseCsvLine(line) {
   const values = []
   let current = ''
@@ -53,7 +53,7 @@ function parseCsvLine(line) {
       i += 1
     } else if (char === '"') {
       quoted = !quoted
-    } else if (char === ',' && !quoted) {
+    } else if (char === ';' && !quoted) {
       values.push(current.trim())
       current = ''
     } else {
@@ -118,7 +118,7 @@ async function baixarCsvDoMinio() {
   const accessKey = process.env.MINIO_ACCESS_KEY
   const secretKey = process.env.MINIO_SECRET_KEY
   const bucket = process.env.MINIO_BUCKET || 'catmat-dados'
-  const key = process.env.MINIO_CBO_ATIVIDADES_KEY || 'cbo_perfilocupacional.csv'
+  const key = process.env.MINIO_CBO_ATIVIDADES_KEY || 'cbo2002-perfilocupacional.csv'
 
   if (!endpoint || !accessKey || !secretKey) return null
 
@@ -187,7 +187,7 @@ async function main() {
     throw new Error('DATABASE_URL nao esta definida.')
   }
 
-  const encoding = process.env.CBO_ATIVIDADES_IMPORT_ENCODING || 'utf8'
+  const encoding = process.env.CBO_ATIVIDADES_IMPORT_ENCODING || 'latin1'
   const maxBatch = Math.floor(32767 / COLUNAS.length)
   const batchSize = Math.min(maxBatch, Math.max(1, Number(process.env.CBO_ATIVIDADES_IMPORT_BATCH_SIZE || 2000)))
 
@@ -209,7 +209,7 @@ async function main() {
   if (!fs.existsSync(inputPath)) {
     throw new Error(
       `Arquivo nao encontrado: ${inputPath}\n` +
-      'Passe o caminho do CSV como argumento (ex.: npm run import:cbo-atividades -- data/cbo_perfilocupacional.csv)\n' +
+      'Passe o caminho do CSV como argumento (ex.: npm run import:cbo-atividades -- dados/salarios/cbo2002-perfilocupacional.csv)\n' +
       'ou configure MINIO_ENDPOINT/MINIO_ACCESS_KEY/MINIO_SECRET_KEY para baixar do bucket.',
     )
   }

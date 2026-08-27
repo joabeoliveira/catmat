@@ -12,7 +12,7 @@
     "import:catser": "node ./scripts/import-catser.mjs",
     "import:salarios": "node ./scripts/import-salarios.mjs",
     "import:tcepr": "node ./scripts/import-tcepr.mjs",
-    "import:cbo": "node ./scripts/import-cbo-enriquecimento.mjs",
+    "import:cbo": "node ./scripts/import-cbo-enriquecimento.mjs && node ./scripts/import-cbo-atividades.mjs",
     "import:cbo-ocupacoes": "node ./scripts/import-cbo-enriquecimento.mjs --ocupacao-only",
     "import:cbo-atividades": "node ./scripts/import-cbo-atividades.mjs",
     "db:search-setup": "psql \"$DATABASE_URL\" -f prisma/sql/001_fts_trgm.sql",
