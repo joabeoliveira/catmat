@@ -216,6 +216,7 @@ export function SalariosSearch() {
   const [carregandoAtividades, setCarregandoAtividades] = useState<Record<number, boolean>>({})
   const [areasRecolhidas, setAreasRecolhidas] = useState<Record<string, boolean>>({})
   const [mensagemGrade, setMensagemGrade] = useState<string | null>(null)
+  const buscaRef = useRef<HTMLDivElement>(null)
   const gradeRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -510,7 +511,7 @@ export function SalariosSearch() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div ref={buscaRef} className="space-y-6 scroll-mt-24">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -773,7 +774,7 @@ export function SalariosSearch() {
             </Card>
           </div> : null}
 
-          {grade.length ? <button type="button" onClick={() => gradeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="fixed bottom-5 right-5 z-20 inline-flex min-h-11 items-center gap-2 rounded-full bg-cyan-700 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2" aria-label="Ir para a grade de postos"><ArrowUp className="h-4 w-4" />Grade ({grade.length} função{grade.length === 1 ? '' : 'ões'})</button> : null}
+          {grade.length ? <button type="button" onClick={() => buscaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="fixed bottom-5 right-5 z-20 inline-flex min-h-11 items-center gap-2 rounded-full bg-cyan-700 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2" aria-label="Voltar para a pesquisa"><ArrowUp className="h-4 w-4" />Voltar para pesquisa</button> : null}
 
           <div className="flex items-center justify-center gap-3 pt-2">
             <Button
