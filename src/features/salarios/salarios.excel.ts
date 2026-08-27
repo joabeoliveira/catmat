@@ -112,6 +112,7 @@ function normalizarGrade(items: SalarioCard[]): SalarioGradeItem[] {
         ? linha.salarioReferencia
         : salarioDoCriterio(item, criterio),
       observacao: linha.observacao || '',
+      atividadesSelecionadas: Array.isArray(linha.atividadesSelecionadas) ? linha.atividadesSelecionadas : undefined,
     }
   })
 }
@@ -177,7 +178,7 @@ function criarPlanilhaCustos(grade: SalarioGradeItem[]) {
     [],
     ['Atenção', 'Os totais iniciais consideram apenas os salários adotados. Preencha encargos, provisões, benefícios e outros custos para obter uma estimativa mais completa.'],
     [],
-    ['CBO', 'Posto/Função', 'Quantidade de postos', 'Referência salarial escolhida', 'Salário mensal adotado por posto', 'Encargos e provisões (%)', 'Benefícios mensais por posto', 'Outros custos mensais por posto', 'Custo mensal estimado', 'Custo anual estimado (12 meses)', 'Custo estimado do contrato', 'Observações'],
+    ['CBO', 'Posto/Função', 'Quantidade de postos', 'Referência salarial escolhida', 'Salário mensal adotado por posto', 'Encargos e provisões (%)', 'Benefícios mensais por posto', 'Outros custos mensais por posto', 'Custo mensal estimado', 'Custo anual estimado (12 meses)', 'Custo estimado do contrato', 'Observações', 'Atividades (CBO) do posto'],
     ...grade.map((item) => [
       item.cbo,
       item.titulo,
@@ -191,24 +192,25 @@ function criarPlanilhaCustos(grade: SalarioGradeItem[]) {
       item.quantidade * (item.salarioReferencia || 0) * 12,
       item.quantidade * (item.salarioReferencia || 0) * 12,
       item.observacao || '',
+      item.atividadesSelecionadas?.join('; ') || '',
     ]),
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } },
-    { s: { r: 3, c: 0 }, e: { r: 3, c: 11 } },
-    { s: { r: 10, c: 1 }, e: { r: 10, c: 11 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } },
+    { s: { r: 3, c: 0 }, e: { r: 3, c: 12 } },
+    { s: { r: 10, c: 1 }, e: { r: 10, c: 12 } },
   ]
   ws['!cols'] = [
     { wch: 9 }, { wch: 42 }, { wch: 14 }, { wch: 31 }, { wch: 20 }, { wch: 18 },
-    { wch: 21 }, { wch: 21 }, { wch: 20 }, { wch: 22 }, { wch: 22 }, { wch: 35 },
+    { wch: 21 }, { wch: 21 }, { wch: 20 }, { wch: 22 }, { wch: 22 }, { wch: 35 }, { wch: 60 },
   ]
   ws['!rows'] = [{ hpt: 30 }, { hpt: 30 }, {}, { hpt: 24 }, {}, {}, {}, {}, {}, {}, { hpt: 34 }, {}, { hpt: 48 }]
-  ws['!autofilter'] = { ref: `A13:L${Math.max(13, fimDados)}` }
-  estilizarLinha(ws, 0, 0, 11, ESTILO_TITULO)
-  estilizarLinha(ws, 3, 0, 11, ESTILO_SECAO)
-  estilizarLinha(ws, 12, 0, 11, ESTILO_CABECALHO)
+  ws['!autofilter'] = { ref: `A13:M${Math.max(13, fimDados)}` }
+  estilizarLinha(ws, 0, 0, 12, ESTILO_TITULO)
+  estilizarLinha(ws, 3, 0, 12, ESTILO_SECAO)
+  estilizarLinha(ws, 12, 0, 12, ESTILO_CABECALHO)
   aplicarEstilo(ws, 'B5', ESTILO_ENTRADA)
 
   for (let r = inicioDados; r <= fimDados; r += 1) {

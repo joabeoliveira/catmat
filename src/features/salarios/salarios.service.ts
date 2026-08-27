@@ -7,10 +7,12 @@ import {
   ANOS_SALARIOS,
   type AnoSalario,
   type EstatisticasSalario,
+  type SalarioAtividadesResponse,
   type SalarioBuscaParams,
   type SalarioBuscaResponse,
-  type SalarioDetalheResponse,
   type SalarioCard,
+  type SalarioCboAreaAtividades,
+  type SalarioDetalheResponse,
   type SalarioHierarquiaOpcao,
   type SalarioSugestao,
   type SalarioUf,
@@ -31,6 +33,13 @@ interface CboRow {
 
 interface PercentilRow extends SalarioPercentis { cbo: number; ano: number }
 interface SinonimoRow { cbo: number; sinonimo: string }
+
+interface AtividadeRow {
+  siglaGrandeArea: string
+  grandeArea: string
+  codigoAtividade: number
+  nomeAtividade: string
+}
 
 interface UfRow {
   uf: string
@@ -451,5 +460,38 @@ export class SalariosService {
       historico,
       percentis: percentilRows,
     }
+  }
+
+  /** Atividades do perfil ocupacional (CBO 2002) por ocupação (6 dígitos) ou família (4 dígitos). */
+  async buscarAtividades(cbo: number): Promise<SalarioAtividadesResponse> {
+    if (!Number.isInteger(cbo) || cbo <= 0) throw new Error('Código CBO inválido.')
+    // Resolução explícita família × ocupação: cbo ≥ 100000 é ocupação (6 dígitos),
+    // caso contrário é família (4 dígitos) — cards de nível superior nunca ficam vazios.
+    const ehOcupacao = cbo >= 100000
+    const familiaCbo = ehOcupacao ? Math.floor(cbo / 100) : cbo
+    const rows = await prisma.$queryRawUnsafe<AtividadeRow[]>(
+      `SELECT "siglaGrandeArea", "grandeArea", "codigoAtividade", "nomeAtividade" FROM "SalarioCboAtividade" WHERE ${ehOcupacao ? '"cbo" = $1' : '"familiaCbo" = $1'} ORDER BY "grandeArea" ASC, "codigoAtividade" ASC, "nomeAtividade" ASC`,
+      ehOcupacao ? cbo : familiaCbo,
+    )
+
+    const areas: SalarioCboAreaAtividades[] = []
+    const indicePorArea = new Map<string, number>()
+    const atividadesVistas = new Set<string>()
+    for (const row of rows) {
+      const chaveArea = `${row.siglaGrandeArea}|${row.grandeArea}`
+      let indice = indicePorArea.get(chaveArea)
+      if (indice === undefined) {
+        indice = areas.length
+        indicePorArea.set(chaveArea, indice)
+        areas.push({ siglaGrandeArea: row.siglaGrandeArea, grandeArea: row.grandeArea, atividades: [] })
+      }
+      // Deduplica pelo nome (no agregado de família, o mesmo código pode repetir com nomes iguais).
+      const chaveAtividade = `${indice}|${row.nomeAtividade}`
+      if (atividadesVistas.has(chaveAtividade)) continue
+      atividadesVistas.add(chaveAtividade)
+      areas[indice].atividades.push({ codigoAtividade: row.codigoAtividade, nomeAtividade: row.nomeAtividade })
+    }
+
+    return { cbo, familiaCbo, areas }
   }
 }

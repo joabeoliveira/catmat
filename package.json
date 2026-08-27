@@ -14,12 +14,14 @@
     "import:tcepr": "node ./scripts/import-tcepr.mjs",
     "import:cbo": "node ./scripts/import-cbo-enriquecimento.mjs",
     "import:cbo-ocupacoes": "node ./scripts/import-cbo-enriquecimento.mjs --ocupacao-only",
+    "import:cbo-atividades": "node ./scripts/import-cbo-atividades.mjs",
     "db:search-setup": "psql \"$DATABASE_URL\" -f prisma/sql/001_fts_trgm.sql",
     "db:nfe-setup": "psql \"$DATABASE_URL\" -f prisma/sql/002_nfe_referencia.sql",
     "db:bps-setup": "psql \"$DATABASE_URL\" -f prisma/sql/003_bps_referencia.sql",
     "db:catser-setup": "psql \"$DATABASE_URL\" -f prisma/sql/004_catser_referencia.sql",
     "db:salarios-setup": "psql \"$DATABASE_URL\" -f prisma/sql/005_salarios_referencia.sql",
     "db:tcepr-setup": "psql \"$DATABASE_URL\" -f prisma/sql/006_tcepr_referencia.sql",
+    "db:cbo-atividades-setup": "psql \"$DATABASE_URL\" -f prisma/sql/007_cbo_atividades_referencia.sql",
     "postinstall": "prisma generate"
   },
   "dependencies": {

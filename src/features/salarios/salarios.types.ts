@@ -74,6 +74,8 @@ export interface SalarioGradeItem extends SalarioCard {
   criterioReferencia: CriterioSalarioGrade
   salarioReferencia: number | null
   observacao?: string
+  /** Atividades do perfil ocupacional (CBO) selecionadas para o posto. */
+  atividadesSelecionadas?: string[]
 }
 
 export interface SalarioHierarquia {
@@ -144,4 +146,21 @@ export interface SalarioHierarquiaOpcao {
   subgrupoPrincipalCodigo?: string
   familia: string
   familiaCodigo?: string
+}
+
+export interface SalarioCboAtividade {
+  codigoAtividade: number
+  nomeAtividade: string
+}
+
+export interface SalarioCboAreaAtividades {
+  siglaGrandeArea: string
+  grandeArea: string
+  atividades: SalarioCboAtividade[]
+}
+
+export interface SalarioAtividadesResponse {
+  cbo: number
+  familiaCbo: number
+  areas: SalarioCboAreaAtividades[]
 }

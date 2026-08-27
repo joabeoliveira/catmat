@@ -1,15 +1,17 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeftRight, Check, ChevronDown, Download, Filter, Plus, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, Check, ChevronDown, Download, Filter, ListChecks, Plus, Search, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import type {
+  SalarioAtividadesResponse,
   SalarioBuscaResponse,
   SalarioCard,
+  SalarioCboAreaAtividades,
   SalarioGradeItem,
   SalarioHierarquiaOpcao,
   SalarioSugestao,
@@ -48,7 +50,37 @@ function Stat({ label, value, destaque }: { label: string; value: number | null;
   )
 }
 
-function CardSalario({ item, aplicarInpc, adicionar, comparar, selecionado }: { item: SalarioCard; aplicarInpc: boolean; adicionar: (item: SalarioCard) => void; comparar: (item: SalarioCard) => void; selecionado: boolean }) {
+function CardSalario({
+  item,
+  aplicarInpc,
+  adicionar,
+  comparar,
+  selecionado,
+  atividades,
+  carregandoAtividades,
+  atividadeAberta,
+  atividadesSelecionadas,
+  abrirAtividades,
+  alternarAtividade,
+  selecionarArea,
+  alternarArea,
+  areaRecolhida,
+}: {
+  item: SalarioCard
+  aplicarInpc: boolean
+  adicionar: (item: SalarioCard) => void
+  comparar: (item: SalarioCard) => void
+  selecionado: boolean
+  atividades?: SalarioAtividadesResponse
+  carregandoAtividades: boolean
+  atividadeAberta: boolean
+  atividadesSelecionadas: string[]
+  abrirAtividades: () => void
+  alternarAtividade: (nome: string) => void
+  selecionarArea: (area: SalarioCboAreaAtividades, selecionar: boolean) => void
+  alternarArea: (area: SalarioCboAreaAtividades) => void
+  areaRecolhida: (area: SalarioCboAreaAtividades) => boolean
+}) {
   return (
     <Card>
       <CardContent className="space-y-3 pt-6">
@@ -87,6 +119,62 @@ function CardSalario({ item, aplicarInpc, adicionar, comparar, selecionado }: { 
         {item.correspondencia ? <p className="text-xs text-cyan-700 dark:text-cyan-300">{item.correspondencia.descricao}{item.correspondencia.termoEncontrado ? `: “${item.correspondencia.termoEncontrado}”` : ''}</p> : null}
         {item.qualidade?.amplitudePercentual != null ? <p className="text-xs text-slate-500 dark:text-slate-400">Variação entre menor e maior salário: {(item.qualidade.amplitudePercentual * 100).toFixed(0)}% da mediana.</p> : null}
         {item.sinonimos?.length ? <p className="text-xs text-cyan-700 dark:text-cyan-300">Sinônimos: {item.sinonimos.slice(0, 3).join(', ')}</p> : null}
+        <div className="border-t border-slate-100 pt-3 dark:border-slate-800">
+          <Button type="button" size="sm" variant="outline" onClick={abrirAtividades}>
+            <ListChecks className="mr-1 h-4 w-4" />
+            Atividades do posto
+            {atividadesSelecionadas.length > 0 ? <Badge variant="secondary" className="ml-1">{atividadesSelecionadas.length}</Badge> : null}
+          </Button>
+          {atividadeAberta ? (
+            carregandoAtividades && !atividades ? (
+              <div className="mt-3 space-y-2" aria-live="polite">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : atividades && atividades.areas.length ? (
+              <div className="mt-3 space-y-3 rounded-lg border border-cyan-200 bg-cyan-50/50 p-3 dark:border-cyan-900 dark:bg-cyan-950/20">
+                {atividades.areas.map((area) => {
+                  const recolhida = areaRecolhida(area)
+                  const selecionadasNaArea = area.atividades.filter((atividade) => atividadesSelecionadas.includes(atividade.nomeAtividade)).length
+                  return (
+                    <div key={area.siglaGrandeArea}>
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => alternarArea(area)}
+                          className="flex items-center gap-1 text-left text-xs font-medium text-slate-700 dark:text-slate-200"
+                          aria-expanded={!recolhida}
+                        >
+                          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${recolhida ? '-rotate-90' : ''}`} />
+                          <span>{area.siglaGrandeArea} — {area.grandeArea}</span>
+                          <span className="text-slate-400">({selecionadasNaArea}/{area.atividades.length})</span>
+                        </button>
+                        {!recolhida ? (
+                          <div className="flex shrink-0 gap-2">
+                            <button type="button" onClick={() => selecionarArea(area, true)} className="text-xs text-cyan-700 hover:underline dark:text-cyan-300">Selecionar todas</button>
+                            <button type="button" onClick={() => selecionarArea(area, false)} className="text-xs text-rose-600 hover:underline">Limpar</button>
+                          </div>
+                        ) : null}
+                      </div>
+                      {!recolhida ? (
+                        <div className="mt-2 grid gap-1 pl-4 sm:grid-cols-2">
+                          {area.atividades.map((atividade) => (
+                            <label key={`${area.siglaGrandeArea}-${atividade.codigoAtividade}-${atividade.nomeAtividade}`} className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 text-xs text-slate-600 hover:bg-cyan-100/60 dark:text-slate-300 dark:hover:bg-cyan-900/40">
+                              <input type="checkbox" checked={atividadesSelecionadas.includes(atividade.nomeAtividade)} onChange={() => alternarAtividade(atividade.nomeAtividade)} className="mt-0.5 h-3.5 w-3.5 accent-cyan-600" />
+                              <span>{atividade.nomeAtividade}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-slate-500">Nenhuma atividade disponível para este posto.</p>
+            )
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   )
@@ -120,6 +208,11 @@ export function SalariosSearch() {
   const [exportando, setExportando] = useState(false)
   const [grade, setGrade] = useState<SalarioGradeItem[]>([])
   const [comparacao, setComparacao] = useState<SalarioCard[]>([])
+  const [atividadesPorCbo, setAtividadesPorCbo] = useState<Record<number, SalarioAtividadesResponse>>({})
+  const [atividadesSelecionadas, setAtividadesSelecionadas] = useState<Record<number, string[]>>({})
+  const [atividadeAberta, setAtividadeAberta] = useState<number | null>(null)
+  const [carregandoAtividades, setCarregandoAtividades] = useState<Record<number, boolean>>({})
+  const [areasRecolhidas, setAreasRecolhidas] = useState<Record<string, boolean>>({})
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const digitouRef = useRef(false)
@@ -138,6 +231,10 @@ export function SalariosSearch() {
             : linha.estatisticas.mediana,
         })))
       }
+      const salvasAtividades = window.localStorage.getItem('catmat:atividades-selecionadas')
+      if (salvasAtividades) {
+        setAtividadesSelecionadas(JSON.parse(salvasAtividades) as Record<number, string[]>)
+      }
     } catch { /* ignora armazenamento indisponível */ }
   }, [])
 
@@ -145,12 +242,17 @@ export function SalariosSearch() {
     window.localStorage.setItem('catmat:grade-salarios', JSON.stringify(grade))
   }, [grade])
 
+  useEffect(() => {
+    window.localStorage.setItem('catmat:atividades-selecionadas', JSON.stringify(atividadesSelecionadas))
+  }, [atividadesSelecionadas])
+
   function adicionarNaGrade(item: SalarioCard) {
     setGrade((atual) => atual.some((linha) => linha.cbo === item.cbo) ? atual : [...atual, {
       ...item,
       quantidade: 1,
       criterioReferencia: referencia,
       salarioReferencia: referencia === 'p25' ? item.percentis?.p25 ?? null : referencia === 'p75' ? item.percentis?.p75 ?? null : referencia === 'media' ? item.estatisticas.media : item.estatisticas.mediana,
+      atividadesSelecionadas: atividadesSelecionadas[item.cbo] ?? [],
     }])
   }
 
@@ -168,6 +270,59 @@ export function SalariosSearch() {
 
   function removerDaGrade(cbo: number) {
     setGrade((atual) => atual.filter((linha) => linha.cbo !== cbo))
+  }
+
+  async function carregarAtividades(cbo: number) {
+    if (atividadesPorCbo[cbo]) return
+    setCarregandoAtividades((atual) => ({ ...atual, [cbo]: true }))
+    try {
+      const resp = await fetch(`/api/salarios/${cbo}/atividades`)
+      if (!resp.ok) throw new Error('Falha ao carregar as atividades.')
+      const payload = (await resp.json()) as SalarioAtividadesResponse
+      setAtividadesPorCbo((atual) => ({ ...atual, [cbo]: payload }))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha ao carregar as atividades.')
+    } finally {
+      setCarregandoAtividades((atual) => ({ ...atual, [cbo]: false }))
+    }
+  }
+
+  function alternarPainelAtividades(cbo: number) {
+    const abrindo = atividadeAberta !== cbo
+    setAtividadeAberta(abrindo ? cbo : null)
+    if (abrindo) void carregarAtividades(cbo)
+  }
+
+  function sincronizarGradeAtividades(cbo: number, selecionadas: string[]) {
+    setGrade((atual) => atual.map((linha) => linha.cbo === cbo ? { ...linha, atividadesSelecionadas: selecionadas } : linha))
+  }
+
+  function alternarAtividade(cbo: number, nome: string) {
+    const atual = atividadesSelecionadas[cbo] ?? []
+    const nova = atual.includes(nome) ? atual.filter((n) => n !== nome) : [...atual, nome]
+    setAtividadesSelecionadas((prev) => ({ ...prev, [cbo]: nova }))
+    sincronizarGradeAtividades(cbo, nova)
+  }
+
+  function selecionarArea(cbo: number, area: SalarioCboAreaAtividades, selecionar: boolean) {
+    const conjunto = new Set(atividadesSelecionadas[cbo] ?? [])
+    for (const atividade of area.atividades) {
+      if (selecionar) conjunto.add(atividade.nomeAtividade)
+      else conjunto.delete(atividade.nomeAtividade)
+    }
+    const nova = Array.from(conjunto)
+    setAtividadesSelecionadas((prev) => ({ ...prev, [cbo]: nova }))
+    sincronizarGradeAtividades(cbo, nova)
+  }
+
+  function alternarRecolhimentoArea(cbo: number, area: SalarioCboAreaAtividades) {
+    const chave = `${cbo}|${area.grandeArea}`
+    setAreasRecolhidas((atual) => ({ ...atual, [chave]: !(atual[chave] ?? area.siglaGrandeArea === 'Z') }))
+  }
+
+  function areaRecolhida(cbo: number, area: SalarioCboAreaAtividades): boolean {
+    const chave = `${cbo}|${area.grandeArea}`
+    return areasRecolhidas[chave] ?? area.siglaGrandeArea === 'Z'
   }
 
   function atualizarGrade(cbo: number, alteracoes: Partial<SalarioGradeItem>) {
@@ -556,14 +711,30 @@ export function SalariosSearch() {
           </Card> : null}
 
           {data.items.map((item) => (
-            <CardSalario key={item.cbo} item={item} aplicarInpc={aplicarInpc} adicionar={adicionarNaGrade} comparar={alternarComparacao} selecionado={comparacao.some((linha) => linha.cbo === item.cbo)} />
+            <CardSalario
+              key={item.cbo}
+              item={item}
+              aplicarInpc={aplicarInpc}
+              adicionar={adicionarNaGrade}
+              comparar={alternarComparacao}
+              selecionado={comparacao.some((linha) => linha.cbo === item.cbo)}
+              atividades={atividadesPorCbo[item.cbo]}
+              carregandoAtividades={Boolean(carregandoAtividades[item.cbo])}
+              atividadeAberta={atividadeAberta === item.cbo}
+              atividadesSelecionadas={atividadesSelecionadas[item.cbo] ?? []}
+              abrirAtividades={() => alternarPainelAtividades(item.cbo)}
+              alternarAtividade={(nome) => alternarAtividade(item.cbo, nome)}
+              selecionarArea={(area, selecionar) => selecionarArea(item.cbo, area, selecionar)}
+              alternarArea={(area) => alternarRecolhimentoArea(item.cbo, area)}
+              areaRecolhida={(area) => areaRecolhida(item.cbo, area)}
+            />
           ))}
 
           {grade.length ? <Card>
             <CardHeader><CardTitle>Grade de postos ({grade.length} funções · {grade.reduce((total, linha) => total + linha.quantidade, 0)} postos)</CardTitle><CardDescription>Defina a quantidade e o salário mensal que será usado como referência na formação de preços.</CardDescription></CardHeader>
             <CardContent className="space-y-2">
               {grade.map((linha) => <div key={linha.cbo} className="grid gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 lg:grid-cols-[minmax(0,1fr)_110px_230px_180px_44px] lg:items-end">
-                <div className="min-w-0"><strong>{linha.cbo}</strong> · {linha.titulo}<div className="text-xs text-slate-500">Faixa inferior (P25): {formatarMoeda(linha.percentis?.p25 ?? null)} · valor central (mediana): {formatarMoeda(linha.estatisticas.mediana)} · faixa superior (P75): {formatarMoeda(linha.percentis?.p75 ?? null)}</div></div>
+                <div className="min-w-0"><strong>{linha.cbo}</strong> · {linha.titulo}<div className="text-xs text-slate-500">Faixa inferior (P25): {formatarMoeda(linha.percentis?.p25 ?? null)} · valor central (mediana): {formatarMoeda(linha.estatisticas.mediana)} · faixa superior (P75): {formatarMoeda(linha.percentis?.p75 ?? null)}</div>{linha.atividadesSelecionadas?.length ? <div className="mt-1 text-xs text-cyan-700 dark:text-cyan-300">Atividades ({linha.atividadesSelecionadas.length}): {linha.atividadesSelecionadas.slice(0, 4).join('; ')}{linha.atividadesSelecionadas.length > 4 ? '…' : ''}</div> : null}</div>
                 <label className="text-xs text-slate-600 dark:text-slate-300">Quantidade
                   <Input type="number" min={1} max={9999} value={linha.quantidade} onChange={(event) => atualizarGrade(linha.cbo, { quantidade: Math.max(1, Number(event.target.value) || 1) })} className="mt-1" />
                 </label>

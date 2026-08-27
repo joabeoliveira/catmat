@@ -283,3 +283,28 @@ model LicitacaoVencedorTcePr {
   @@index([idLicitacao])
   @@index([dsModalidadeLicitacao])
 }
+
+// Atividades do perfil ocupacional (CBO 2002 — arquivo cbo_perfilocupacional.csv)
+// cbo = ocupação (6 dígitos, ex.: 20105) → liga SalarioCboOcupacao.cbo
+// familiaCbo = família (4 dígitos, ex.: 201) → liga SalarioCbo.cbo
+model SalarioCboAtividade {
+  id                      Int      @id @default(autoincrement())
+  cbo                     Int
+  familiaCbo              Int
+  codigoAtividade         Int
+  nomeAtividade           String
+  siglaGrandeArea         String
+  grandeArea              String
+  grandeGrupoCodigo       Int
+  subgrupoPrincipalCodigo Int
+  subgrupoCodigo          Int
+  familiaCodigo           Int
+  fonte                   String?
+  atualizadoEm            DateTime @default(now()) @updatedAt
+
+  @@unique([cbo, siglaGrandeArea, codigoAtividade])
+  @@index([cbo])
+  @@index([familiaCbo])
+  @@index([grandeArea])
+  @@map("SalarioCboAtividade")
+}
