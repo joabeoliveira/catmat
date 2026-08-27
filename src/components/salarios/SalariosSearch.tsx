@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeftRight, Check, ChevronDown, Download, Filter, ListChecks, Plus, Search, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, ArrowUp, Check, ChevronDown, Download, Filter, ListChecks, Plus, Search, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -54,6 +54,7 @@ function CardSalario({
   item,
   aplicarInpc,
   adicionar,
+  adicionado,
   comparar,
   selecionado,
   atividades,
@@ -69,6 +70,7 @@ function CardSalario({
   item: SalarioCard
   aplicarInpc: boolean
   adicionar: (item: SalarioCard) => void
+  adicionado: boolean
   comparar: (item: SalarioCard) => void
   selecionado: boolean
   atividades?: SalarioAtividadesResponse
@@ -100,7 +102,7 @@ function CardSalario({
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant={selecionado ? 'default' : 'outline'} onClick={() => comparar(item)}>{selecionado ? <Check className="mr-1 h-4 w-4" /> : <ArrowLeftRight className="mr-1 h-4 w-4" />}{selecionado ? 'Selecionado' : 'Comparar'}</Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => adicionar(item)}><Plus className="mr-1 h-4 w-4" />Adicionar à grade</Button>
+            <Button type="button" size="sm" variant={adicionado ? 'default' : 'outline'} onClick={() => adicionar(item)}>{adicionado ? <Check className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}{adicionado ? 'Adicionado à grade' : 'Adicionar à grade'}</Button>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -213,6 +215,8 @@ export function SalariosSearch() {
   const [atividadeAberta, setAtividadeAberta] = useState<number | null>(null)
   const [carregandoAtividades, setCarregandoAtividades] = useState<Record<number, boolean>>({})
   const [areasRecolhidas, setAreasRecolhidas] = useState<Record<string, boolean>>({})
+  const [mensagemGrade, setMensagemGrade] = useState<string | null>(null)
+  const gradeRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const digitouRef = useRef(false)
@@ -247,6 +251,7 @@ export function SalariosSearch() {
   }, [atividadesSelecionadas])
 
   function adicionarNaGrade(item: SalarioCard) {
+    const jaAdicionado = grade.some((linha) => linha.cbo === item.cbo)
     setGrade((atual) => atual.some((linha) => linha.cbo === item.cbo) ? atual : [...atual, {
       ...item,
       quantidade: 1,
@@ -254,6 +259,11 @@ export function SalariosSearch() {
       salarioReferencia: referencia === 'p25' ? item.percentis?.p25 ?? null : referencia === 'p75' ? item.percentis?.p75 ?? null : referencia === 'media' ? item.estatisticas.media : item.estatisticas.mediana,
       atividadesSelecionadas: atividadesSelecionadas[item.cbo] ?? [],
     }])
+    setMensagemGrade(jaAdicionado ? `${item.titulo} já está na grade.` : `${item.titulo} foi adicionado à grade.`)
+    if (!jaAdicionado) {
+      window.setTimeout(() => gradeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+    }
+    window.setTimeout(() => setMensagemGrade(null), 3500)
   }
 
   function alternarComparacao(item: SalarioCard) {
@@ -716,6 +726,7 @@ export function SalariosSearch() {
               item={item}
               aplicarInpc={aplicarInpc}
               adicionar={adicionarNaGrade}
+              adicionado={grade.some((linha) => linha.cbo === item.cbo)}
               comparar={alternarComparacao}
               selecionado={comparacao.some((linha) => linha.cbo === item.cbo)}
               atividades={atividadesPorCbo[item.cbo]}
@@ -730,7 +741,9 @@ export function SalariosSearch() {
             />
           ))}
 
-          {grade.length ? <Card>
+          {grade.length ? <div ref={gradeRef} id="grade-postos" className="scroll-mt-24">
+            {mensagemGrade ? <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200" role="status"><span>{mensagemGrade}</span><button type="button" onClick={() => setMensagemGrade(null)} aria-label="Fechar mensagem" className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300">×</button></div> : null}
+            <Card>
             <CardHeader><CardTitle>Grade de postos ({grade.length} funções · {grade.reduce((total, linha) => total + linha.quantidade, 0)} postos)</CardTitle><CardDescription>Defina quantidade e salário. A exportação gera resumo consolidado, parâmetros, fórmulas, uma aba por função e as atividades selecionadas.</CardDescription></CardHeader>
             <CardContent className="space-y-2">
               {grade.map((linha) => <div key={linha.cbo} className="grid gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 lg:grid-cols-[minmax(0,1fr)_110px_230px_180px_44px] lg:items-end">
@@ -757,7 +770,10 @@ export function SalariosSearch() {
               </div>)}
               <div className="flex justify-end pt-2"><Button type="button" onClick={exportar} disabled={exportando}><Download className="mr-2 h-4 w-4" />{exportando ? 'Gerando...' : 'Gerar planilha de custos por posto'}</Button></div>
             </CardContent>
-          </Card> : null}
+            </Card>
+          </div> : null}
+
+          {grade.length ? <button type="button" onClick={() => gradeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="fixed bottom-5 right-5 z-20 inline-flex min-h-11 items-center gap-2 rounded-full bg-cyan-700 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2" aria-label="Ir para a grade de postos"><ArrowUp className="h-4 w-4" />Grade ({grade.length} função{grade.length === 1 ? '' : 'ões'})</button> : null}
 
           <div className="flex items-center justify-center gap-3 pt-2">
             <Button
