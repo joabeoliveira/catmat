@@ -13,6 +13,7 @@ export async function GET(request: Request) {
       searchParams.get('q') || searchParams.get('descricao') || '',
       Number(searchParams.get('pagina') || 1),
       Number(searchParams.get('limite') || 20),
+      searchParams.get('refinar') || '',
     )
     return NextResponse.json(resultado)
   } catch (error) {

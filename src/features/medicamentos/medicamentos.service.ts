@@ -43,8 +43,10 @@ function mapItem(row: MedicamentoRow) {
 }
 
 export class MedicamentosService {
-  async buscar(termo: string, pagina = 1, limite = 20): Promise<MedicamentosBuscaResponse> {
+  async buscar(termo: string, pagina = 1, limite = 20, refinamento = ''): Promise<MedicamentosBuscaResponse> {
     const q = termo.trim()
+    const refinar = refinamento.trim()
+    const consulta = [q, refinar].filter(Boolean).join(' ')
     const paginaSegura = Math.max(1, pagina || 1)
     const limiteSeguro = Math.min(50, Math.max(1, limite || 20))
 
@@ -53,7 +55,7 @@ export class MedicamentosService {
     }
 
     const params: unknown[] = []
-    const termoParam = pushParam(params, q)
+    const termoParam = pushParam(params, consulta)
     const likeParam = pushParam(params, `%${escapeLike(q)}%`)
     const whereSql = `(
       "busca_tsv" @@ websearch_to_tsquery('portuguese', ${termoParam})
