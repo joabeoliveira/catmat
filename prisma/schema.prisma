@@ -52,6 +52,23 @@ model CatserItem {
   @@index([nomeServico])
 }
 
+// Medicamentos CATMAT — carga de referencia a partir de CSV
+model MedicamentoCatmat {
+  id                   Int      @id @default(autoincrement())
+  codigoBr             String   @unique @db.VarChar(20)
+  catmat               Int
+  principioAtivo       String
+  concentracao         String
+  formaFarmaceutica    String
+  unidadeFornecimento  String
+  busca_tsv            Unsupported("tsvector")?
+  importadoEm          DateTime @default(now())
+  atualizadoEm         DateTime @default(now()) @updatedAt
+
+  @@index([catmat])
+  @@index([principioAtivo])
+}
+
 // Salários por ocupação (CBO) e UF — base anual 2023..2026 com correção INPC
 model SalarioCbo {
   id                      Int                      @id @default(autoincrement())
