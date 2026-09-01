@@ -54,17 +54,18 @@ model CatserItem {
 
 // Medicamentos CATMAT — carga de referencia a partir de CSV
 model MedicamentoCatmat {
-  id                   Int      @id @default(autoincrement())
-  codigoBr             String   @unique @db.VarChar(20)
-  catmat               Int
-  principioAtivo       String
-  concentracao         String
-  formaFarmaceutica    String
-  unidadeFornecimento  String
-  busca_tsv            Unsupported("tsvector")?
-  importadoEm          DateTime @default(now())
-  atualizadoEm         DateTime @default(now()) @updatedAt
+  id                  Int      @id @default(autoincrement())
+  codigoBr            String   @db.VarChar(20)
+  catmat              String   @db.VarChar(30)
+  principioAtivo      String
+  concentracao        String
+  formaFarmaceutica   String
+  unidadeFornecimento String
+  busca_tsv           Unsupported("tsvector")?
+  importadoEm         DateTime @default(now())
+  atualizadoEm        DateTime @default(now()) @updatedAt
 
+  @@unique([codigoBr, catmat, principioAtivo, concentracao, formaFarmaceutica, unidadeFornecimento], map: "medicamentos_catmat_dados_uidx")
   @@index([catmat])
   @@index([principioAtivo])
 }

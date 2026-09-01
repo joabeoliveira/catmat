@@ -56,13 +56,13 @@ function normalizeHeader(value) {
 function normalizeRow(headers, values) {
   const row = Object.fromEntries(headers.map((header, index) => [normalizeHeader(header), values[index] ?? '']))
   const codigoBr = String(row.codigo_br || row.odigo_br || '').trim().toUpperCase()
-  const catmat = Number(String(row.catmat || '').trim())
+  const catmat = String(row.catmat || '').trim().toUpperCase()
   const principioAtivo = String(row.principio_ativo || '').trim()
   const concentracao = String(row.concentracao || '').trim()
   const formaFarmaceutica = String(row.forma_farmaceutica || '').trim()
   const unidadeFornecimento = String(row.unidade_fornecimento || '').trim()
 
-  if (!codigoBr || !Number.isInteger(catmat) || catmat <= 0 || !principioAtivo) return null
+  if (!codigoBr || !catmat || !principioAtivo) return null
 
   return { codigoBr, catmat, principioAtivo, concentracao, formaFarmaceutica, unidadeFornecimento }
 }
@@ -99,11 +99,11 @@ async function ensureSchema() {
 
 async function insertBatch(batch) {
   if (!batch.length) return 0
-  // O PostgreSQL rejeita um INSERT ... ON CONFLICT quando o mesmo valor
-  // da chave única aparece mais de uma vez no conjunto de valores. O CSV
-  // pode conter duplicidades de codigo_br; neste caso, prevalece a última
-  // ocorrência do lote.
-  const unicos = [...new Map(batch.map((row) => [row.codigoBr, row])).values()]
+  // O PostgreSQL rejeita um INSERT ... ON CONFLICT quando a mesma chave
+  // aparece mais de uma vez no conjunto de valores. Duplicidades de codigoBr
+  // são legítimas; só removemos linhas completamente idênticas no lote.
+  const chave = (row) => COLUNAS.map((column) => row[column]).join('\u001f')
+  const unicos = [...new Map(batch.map((row) => [chave(row), row])).values()]
   const values = []
   const tuples = unicos.map((row, rowIndex) => {
     const placeholders = COLUNAS.map((column, columnIndex) => {
@@ -112,14 +112,13 @@ async function insertBatch(batch) {
     })
     return `(${placeholders.join(', ')})`
   })
-  const updateColumns = COLUNAS
-    .filter((column) => column !== 'codigoBr')
-    .map((column) => `"${column}" = EXCLUDED."${column}"`)
-    .join(', ')
   const sql = `
     INSERT INTO "MedicamentoCatmat" (${COLUNAS.map((column) => `"${column}"`).join(', ')})
     VALUES ${tuples.join(', ')}
-    ON CONFLICT ("codigoBr") DO UPDATE SET ${updateColumns}, "atualizadoEm" = now()
+    ON CONFLICT (
+      "codigoBr", "catmat", "principioAtivo", "concentracao",
+      "formaFarmaceutica", "unidadeFornecimento"
+    ) DO NOTHING
   `
   await prisma.$executeRawUnsafe(sql, ...values)
   return unicos.length

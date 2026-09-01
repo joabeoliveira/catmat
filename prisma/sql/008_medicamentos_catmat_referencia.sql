@@ -12,7 +12,7 @@ $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT;
 CREATE TABLE IF NOT EXISTS "MedicamentoCatmat" (
   "id" SERIAL PRIMARY KEY,
   "codigoBr" VARCHAR(20) NOT NULL,
-  "catmat" INTEGER NOT NULL,
+  "catmat" VARCHAR(30) NOT NULL,
   "principioAtivo" TEXT NOT NULL,
   "concentracao" TEXT NOT NULL,
   "formaFarmaceutica" TEXT NOT NULL,
@@ -28,8 +28,17 @@ CREATE TABLE IF NOT EXISTS "MedicamentoCatmat" (
   ) STORED
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS medicamentos_catmat_codigo_br_uidx
-  ON "MedicamentoCatmat" ("codigoBr");
+-- Compatibilidade com a primeira versão da tabela, que tratava codigoBr
+-- como único e catmat como inteiro.
+DROP INDEX IF EXISTS medicamentos_catmat_codigo_br_uidx;
+ALTER TABLE "MedicamentoCatmat"
+  ALTER COLUMN "catmat" TYPE VARCHAR(30) USING "catmat"::text;
+
+CREATE UNIQUE INDEX IF NOT EXISTS medicamentos_catmat_dados_uidx
+  ON "MedicamentoCatmat" (
+    "codigoBr", "catmat", "principioAtivo", "concentracao",
+    "formaFarmaceutica", "unidadeFornecimento"
+  );
 
 CREATE INDEX IF NOT EXISTS medicamentos_catmat_catmat_idx
   ON "MedicamentoCatmat" ("catmat");
@@ -39,4 +48,3 @@ CREATE INDEX IF NOT EXISTS medicamentos_catmat_busca_tsv_idx
 
 CREATE INDEX IF NOT EXISTS medicamentos_catmat_principio_trgm_idx
   ON "MedicamentoCatmat" USING gin (immutable_unaccent("principioAtivo") gin_trgm_ops);
-
