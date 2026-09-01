@@ -20,6 +20,7 @@ export function SiteHeader() {
 
   const links = [
     ['/', 'CATMAT'],
+    ['/medicamentos', 'MEDICAMENTOS'],
     ['/catser', 'CATSER'],
     ['/grupos', 'Grupos'],
     ['/nfe', 'NF-e'],
