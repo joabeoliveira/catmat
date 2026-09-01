@@ -32,7 +32,18 @@ CREATE TABLE IF NOT EXISTS "MedicamentoCatmat" (
 -- como único e catmat como inteiro.
 DROP INDEX IF EXISTS medicamentos_catmat_codigo_br_uidx;
 ALTER TABLE "MedicamentoCatmat"
+  DROP COLUMN IF EXISTS "busca_tsv";
+ALTER TABLE "MedicamentoCatmat"
   ALTER COLUMN "catmat" TYPE VARCHAR(30) USING "catmat"::text;
+
+ALTER TABLE "MedicamentoCatmat"
+  ADD COLUMN "busca_tsv" tsvector GENERATED ALWAYS AS (
+    setweight(to_tsvector('portuguese', immutable_unaccent(coalesce("principioAtivo", ''))), 'A') ||
+    setweight(to_tsvector('portuguese', immutable_unaccent(coalesce("concentracao", ''))), 'B') ||
+    setweight(to_tsvector('portuguese', immutable_unaccent(coalesce("formaFarmaceutica", ''))), 'B') ||
+    setweight(to_tsvector('portuguese', immutable_unaccent(coalesce("unidadeFornecimento", ''))), 'C') ||
+    setweight(to_tsvector('simple', immutable_unaccent(coalesce("codigoBr", '') || ' ' || coalesce("catmat"::text, ''))), 'A')
+  ) STORED;
 
 CREATE UNIQUE INDEX IF NOT EXISTS medicamentos_catmat_dados_uidx
   ON "MedicamentoCatmat" (
