@@ -99,8 +99,13 @@ async function ensureSchema() {
 
 async function insertBatch(batch) {
   if (!batch.length) return 0
+  // O PostgreSQL rejeita um INSERT ... ON CONFLICT quando o mesmo valor
+  // da chave única aparece mais de uma vez no conjunto de valores. O CSV
+  // pode conter duplicidades de codigo_br; neste caso, prevalece a última
+  // ocorrência do lote.
+  const unicos = [...new Map(batch.map((row) => [row.codigoBr, row])).values()]
   const values = []
-  const tuples = batch.map((row, rowIndex) => {
+  const tuples = unicos.map((row, rowIndex) => {
     const placeholders = COLUNAS.map((column, columnIndex) => {
       values.push(row[column] ?? null)
       return `$${rowIndex * COLUNAS.length + columnIndex + 1}`
@@ -117,7 +122,7 @@ async function insertBatch(batch) {
     ON CONFLICT ("codigoBr") DO UPDATE SET ${updateColumns}, "atualizadoEm" = now()
   `
   await prisma.$executeRawUnsafe(sql, ...values)
-  return batch.length
+  return unicos.length
 }
 
 async function main() {
@@ -183,4 +188,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect()
   })
-
