@@ -237,7 +237,125 @@ model CompraItem {
   @@map("compras_item")
 }
 
+// Atas de Registro de Preços do módulo ARP do Compras.gov.br
+model ArpAta {
+  id                       String    @id @default(cuid())
+  numeroControlePncpAta    String    @unique @map("numero_controle_pncp_ata")
+  numeroControlePncpCompra String?   @map("numero_controle_pncp_compra")
+  numeroAtaRegistroPreco   String    @map("numero_ata_registro_preco")
+  codigoUnidadeGerenciadora String   @map("codigo_unidade_gerenciadora")
+  nomeUnidadeGerenciadora  String?
+  codigoOrgao              Int?      @map("codigo_orgao")
+  nomeOrgao                String?
+  linkAtaPncp              String?   @map("link_ata_pncp")
+  linkCompraPncp           String?   @map("link_compra_pncp")
+  numeroCompra             String?   @map("numero_compra")
+  anoCompra                String?   @map("ano_compra")
+  codigoModalidadeCompra   String?   @map("codigo_modalidade_compra")
+  nomeModalidadeCompra     String?   @map("nome_modalidade_compra")
+  dataAssinatura           DateTime? @map("data_assinatura") @db.Date
+  dataVigenciaInicial      DateTime? @map("data_vigencia_inicial") @db.Date
+  dataVigenciaFinal        DateTime? @map("data_vigencia_final") @db.Date
+  valorTotal               Float?    @map("valor_total")
+  statusAta                String?   @map("status_ata")
+  objeto                   String?   @db.Text
+  quantidadeItens          Int?      @map("quantidade_itens")
+  dataHoraAtualizacao      DateTime? @map("data_hora_atualizacao")
+  dataHoraInclusao         DateTime? @map("data_hora_inclusao")
+  dataHoraExclusao         DateTime? @map("data_hora_exclusao")
+  ataExcluido              Boolean   @default(false) @map("ata_excluido")
+  sincronizadoEm           DateTime  @default(now()) @map("sincronizado_em")
+
+  itens ArpItem[]
+
+  @@index([codigoUnidadeGerenciadora])
+  @@index([dataVigenciaFinal])
+  @@index([dataVigenciaInicial])
+  @@index([ataExcluido])
+  @@index([numeroAtaRegistroPreco])
+  @@map("arp_atas")
+}
+
+// Itens da ata, carregados pelo endpoint 2_consultarARPItem
+model ArpItem {
+  id                         String   @id @default(cuid())
+  ataId                      String   @map("ata_id")
+  numeroControlePncpAta      String   @map("numero_controle_pncp_ata")
+  numeroItem                 String   @map("numero_item")
+  codigoItem                 Int?     @map("codigo_item")
+  descricaoItem              String?  @map("descricao_item") @db.Text
+  descricaoDetalhada         String?  @map("descricao_detalhada") @db.Text
+  tipoItem                   String?  @map("tipo_item")
+  numeroCompra               String?  @map("numero_compra")
+  anoCompra                  String?  @map("ano_compra")
+  dataAssinatura             DateTime? @map("data_assinatura") @db.Date
+  dataVigenciaInicial        DateTime? @map("data_vigencia_inicial") @db.Date
+  dataVigenciaFinal          DateTime? @map("data_vigencia_final") @db.Date
+  niFornecedor               String?  @map("ni_fornecedor")
+  nomeRazaoSocialFornecedor  String?  @map("nome_razao_social_fornecedor")
+  quantidadeHomologadaVencedor Float? @map("quantidade_homologada_vencedor")
+  quantidadeHomologadaItem   Float?   @map("quantidade_homologada_item")
+  quantidadeRegistrada       Float?   @map("quantidade_registrada")
+  unidadeMedida              String?  @map("unidade_medida")
+  valorUnitario              Float?   @map("valor_unitario")
+  valorTotal                 Float?   @map("valor_total")
+  maximoAdesao               Float?   @map("maximo_adesao")
+  numeroControlePncpCompra   String?  @map("numero_controle_pncp_compra")
+  idCompra                   String?  @map("id_compra")
+  atualizadoEm               DateTime @default(now()) @updatedAt @map("atualizado_em")
+
+  ata ArpAta @relation(fields: [ataId], references: [id], onDelete: Cascade)
+
+  @@unique([numeroControlePncpAta, numeroItem])
+  @@index([codigoItem])
+  @@index([dataVigenciaFinal])
+  @@index([descricaoItem])
+  @@index([ataId])
+  @@map("arp_itens")
+}
+
 // Licitações municipais homologadas no TCE-PR (carga XML — preços de referência)
+model ArpItemAdesao {
+  id String @id @default(cuid())
+  numeroControlePncpAta String @map("numero_controle_pncp_ata")
+  numeroAtaRegistroPreco String? @map("numero_ata_registro_preco")
+  codigoUnidadeGerenciadora String? @map("codigo_unidade_gerenciadora")
+  nomeUnidadeGerenciadora String? @map("nome_unidade_gerenciadora")
+  numeroControlePncpCompra String? @map("numero_controle_pncp_compra")
+  numeroCompra String? @map("numero_compra")
+  anoCompra String? @map("ano_compra")
+  codigoModalidadeCompra String? @map("codigo_modalidade_compra")
+  nomeModalidadeCompra String? @map("nome_modalidade_compra")
+  dataAssinatura DateTime? @map("data_assinatura") @db.Date
+  dataVigenciaInicial DateTime? @map("data_vigencia_inicial") @db.Date
+  dataVigenciaFinal DateTime? @map("data_vigencia_final") @db.Date
+  numeroItem String @map("numero_item")
+  codigoItem Int? @map("codigo_item")
+  descricaoItem String? @map("descricao_item") @db.Text
+  tipoItem String? @map("tipo_item")
+  classificacaoFornecedor String? @map("classificacao_fornecedor")
+  niFornecedor String? @map("ni_fornecedor")
+  nomeRazaoSocialFornecedor String? @map("nome_razao_social_fornecedor")
+  quantidadeHomologadaItem Float? @map("quantidade_homologada_item")
+  quantidadeHomologadaVencedor Float? @map("quantidade_homologada_vencedor")
+  quantidadeEmpenhada Float? @map("quantidade_empenhada")
+  valorUnitario Float? @map("valor_unitario")
+  valorTotal Float? @map("valor_total")
+  maximoAdesao Float @map("maximo_adesao")
+  itemExcluido Boolean @default(false) @map("item_excluido")
+  dataHoraInclusao DateTime? @map("data_hora_inclusao")
+  dataHoraAtualizacao DateTime? @map("data_hora_atualizacao")
+  sincronizadoEm DateTime @default(now()) @map("sincronizado_em")
+
+  @@unique([numeroControlePncpAta, numeroItem])
+  @@index([codigoItem])
+  @@index([codigoUnidadeGerenciadora])
+  @@index([dataVigenciaFinal])
+  @@index([maximoAdesao])
+  @@index([descricaoItem])
+  @@map("arp_itens_adesao")
+}
+
 model LicitacaoVencedorTcePr {
   id                     Int       @id @default(autoincrement())
 

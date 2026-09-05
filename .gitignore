@@ -64,3 +64,6 @@ data/tcepr/*.xml
 # Documentação local / memória do repositório
 /memories/
 
+# MVPs e arquivos temporários de referência
+/temp/
+

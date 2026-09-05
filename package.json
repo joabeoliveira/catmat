@@ -24,6 +24,7 @@
     "db:medicamentos-setup": "psql \"$DATABASE_URL\" -f prisma/sql/008_medicamentos_catmat_referencia.sql",
     "db:tcepr-setup": "psql \"$DATABASE_URL\" -f prisma/sql/006_tcepr_referencia.sql",
     "db:cbo-atividades-setup": "psql \"$DATABASE_URL\" -f prisma/sql/007_cbo_atividades_referencia.sql",
+    "db:arp-adesao-setup": "psql \"$DATABASE_URL\" -f prisma/sql/010_arp_itens_adesao.sql",
     "postinstall": "prisma generate"
   },
   "dependencies": {

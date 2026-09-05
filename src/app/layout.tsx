@@ -1,11 +1,8 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import '@/styles/globals.css'
 import { SiteHeader } from '@/components/shared/SiteHeader'
 import { SiteFooter } from '@/components/shared/SiteFooter'
 import { getSiteUrl } from '@/lib/site-config'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
@@ -41,7 +38,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           }}
         />
       </head>
-      <body className={`${inter.className} bg-slate-50 dark:bg-slate-950`}>
+      <body className="bg-slate-50 dark:bg-slate-950">
         <SiteHeader />
         {children}
         <SiteFooter />
