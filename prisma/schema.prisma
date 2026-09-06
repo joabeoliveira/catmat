@@ -356,6 +356,42 @@ model ArpItemAdesao {
   @@map("arp_itens_adesao")
 }
 
+model CnpjEmpresa {
+  id String @id @default(cuid())
+  cnpj String @unique
+  razaoSocial String? @map("razao_social")
+  nomeFantasia String? @map("nome_fantasia")
+  situacaoCadastral String? @map("situacao_cadastral")
+  dataSituacaoCadastral DateTime? @map("data_situacao_cadastral") @db.Date
+  dataInicioAtividade DateTime? @map("data_inicio_atividade") @db.Date
+  naturezaJuridica String? @map("natureza_juridica")
+  porte String?
+  capitalSocial Float? @map("capital_social")
+  cnaeFiscal String? @map("cnae_fiscal")
+  cnaeFiscalDescricao String? @map("cnae_fiscal_descricao") @db.Text
+  logradouro String?
+  numero String?
+  complemento String?
+  bairro String?
+  municipio String?
+  uf String?
+  cep String?
+  email String?
+  telefone String?
+  socios Json?
+  atividadesSecundarias Json? @map("atividades_secundarias")
+  dadosBrutos Json? @map("dados_brutos")
+  fonte String? @default("BrasilAPI")
+  consultadoEm DateTime @default(now()) @map("consultado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  @@index([razaoSocial])
+  @@index([nomeFantasia])
+  @@index([situacaoCadastral])
+  @@index([uf, municipio])
+  @@map("cnpj_empresas")
+}
+
 model LicitacaoVencedorTcePr {
   id                     Int       @id @default(autoincrement())
 

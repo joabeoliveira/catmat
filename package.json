@@ -25,6 +25,10 @@
     "db:tcepr-setup": "psql \"$DATABASE_URL\" -f prisma/sql/006_tcepr_referencia.sql",
     "db:cbo-atividades-setup": "psql \"$DATABASE_URL\" -f prisma/sql/007_cbo_atividades_referencia.sql",
     "db:arp-adesao-setup": "psql \"$DATABASE_URL\" -f prisma/sql/010_arp_itens_adesao.sql",
+    "db:cnpj-setup": "psql \"$DATABASE_URL\" -f prisma/sql/011_cnpj_empresas.sql",
+    "sync:arp-adesao": "node scripts/sync-arp-adesao.mjs",
+    "sync:arp-adesao:teste": "node scripts/sync-arp-adesao.mjs --limite=5000 --intervalo=15000",
+    "worker:arp-adesao": "node scripts/arp-adesao-worker.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

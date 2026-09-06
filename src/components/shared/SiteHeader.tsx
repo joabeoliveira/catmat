@@ -28,6 +28,7 @@ export function SiteHeader() {
     ['/salarios', 'Salários'],
     ['/tce-pr', 'TCE-PR'],
     ['/arp', 'ARP'],
+    ['/cnpj', 'CNPJ'],
   ] as const
 
   return (
