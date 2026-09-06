@@ -1,0 +1,29 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: catmat:production
+    command: ["node", "server.js"]
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    restart: unless-stopped
+
+  arp-worker:
+    image: catmat:production
+    command: ["node", "scripts/arp-adesao-worker.mjs"]
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      ARP_SYNC_HORA: ${ARP_SYNC_HORA:-2}
+      ARP_SYNC_INTERVALO_MS: ${ARP_SYNC_INTERVALO_MS:-15000}
+    depends_on:
+      - web
+    restart: unless-stopped

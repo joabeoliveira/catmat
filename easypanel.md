@@ -28,3 +28,13 @@ app/
 
 - DATABASE_URL
 - NODE_ENV=production
+
+## Worker de atualização de ARP
+
+O deploy precisa executar dois processos usando a mesma imagem:
+
+- aplicação web: `node server.js`
+- worker: `node scripts/arp-adesao-worker.mjs`
+
+O worker executa a carga diária às 02:00 no horário de Brasília, com intervalo padrão de 15 segundos entre páginas.
+Configure `ARP_SYNC_HORA` e `ARP_SYNC_INTERVALO_MS` conforme necessário. Em ambientes que aceitam Docker Compose, use `docker-compose.production.yml`, que já define os serviços `web` e `arp-worker`.
