@@ -86,7 +86,7 @@ export function ArpSearch() {
     const next = [values, ...history.filter(h => h.uasg !== values.uasg || h.catmat !== values.catmat)].slice(0, 8); setHistory(next); try { localStorage.setItem('catmat:arp:historico', JSON.stringify(next)) } catch {}
     try {
       const data = aba === 'adesao' ? await (async () => { const res = await fetch(`/api/arp/adesao?${new URLSearchParams({ pagina: String(page), limite: '200', q: values.objeto, uasg: values.uasg, catmat: values.catmat })}`); const json = await res.json(); if (!res.ok) throw new Error(json.error || 'Falha ao buscar oportunidades.'); return json })() : await localApi({ pagina: String(page), limite: '200', q: values.objeto, uasg: values.uasg, catmat: values.catmat, uf: values.uf }); let result = (data.resultado || []).map((i: Item) => ({ ...(i.ata || {}), ...i, valorTotalAta: i.ata?.valorTotal }))
-      if (aba === 'adesao') { setAdesaoItems(result); setAdesaoTotal(data.totalRegistros || 0); setPagina(page); setPaginas(data.totalPaginas || 1); return }
+      if (aba === 'adesao') { setItems(result); setAdesaoItems(result); setAdesaoTotal(data.totalRegistros || 0); setPagina(page); setPaginas(data.totalPaginas || 1); return }
       if (values.uf) {
         const codes = Array.from(new Set<string>(result.map((i: Item) => String(i.codigoUnidadeGerenciadora))))
         const map = new Map<string, string>()
