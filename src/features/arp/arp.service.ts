@@ -184,13 +184,14 @@ export async function sincronizarItensAdesao({
 export async function buscarItensAdesaoLocal({ termo = '', uasg, catmat, pagina = 1, limite = 50 }: { termo?: string; uasg?: string; catmat?: number; pagina?: number; limite?: number } = {}) {
   if (!Number.isInteger(pagina) || pagina < 1 || !Number.isInteger(limite) || limite < 1 || limite > 200) throw new Error('Paginação inválida.')
   const hoje = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z')
+  const termos = termo.trim().split(/\s+/).filter(Boolean)
   const where: Prisma.ArpItemAdesaoWhereInput = {
     maximoAdesao: { gt: 0 }, itemExcluido: false,
     // A janela sincronizada pode conter atas futuras; elas continuam sendo
     // oportunidades válidas e não devem desaparecer antes da vigência inicial.
     dataVigenciaFinal: { gte: hoje },
     ...(uasg ? { codigoUnidadeGerenciadora: uasg } : {}), ...(catmat ? { codigoItem: catmat } : {}),
-    ...(termo ? { descricaoItem: { contains: termo, mode: 'insensitive' } } : {}),
+    ...(termos.length ? { AND: termos.map((palavra) => ({ descricaoItem: { contains: palavra, mode: 'insensitive' as const } })) } : {}),
   }
   const [total, resultado] = await arpDb.$transaction([
     arpDb.arpItemAdesao.count({ where }),
