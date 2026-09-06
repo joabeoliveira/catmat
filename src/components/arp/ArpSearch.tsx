@@ -68,7 +68,7 @@ export function ArpSearch() {
     try {
       const res = await fetch(`/api/arp/adesao/sincronizar?pagina=${adesaoSyncPage}`, { method: 'POST' }); const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Falha na sincronização de oportunidades.')
-      setAdesaoSyncPage(data.proximaPagina || 1); setAdesaoSyncInfo(`${data.gravados} itens disponíveis atualizados. Lote ${data.pagina} de ${data.totalPaginas}.`); await loadAdesao()
+      setAdesaoSyncPage(data.proximaPagina || 1); setAdesaoSyncInfo(`${data.armazenados ?? data.gravados} itens armazenados; ${data.elegiveis ?? data.disponiveis ?? 0} disponíveis para adesão. Lote ${data.pagina} de ${data.totalPaginas}.`); await loadAdesao()
     } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao sincronizar oportunidades.') } finally { setAdesaoSyncing(false) }
   }
   async function syncDatabase() {

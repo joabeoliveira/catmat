@@ -161,7 +161,8 @@ export async function sincronizarItensAdesao({
     pagina: String(pagina), tamanhoPagina: String(ADESAO_PAGE_SIZE), dataVigenciaInicialMin, dataVigenciaInicialMax,
   })
   const recebidos = resposta.resultado || []
-  const elegiveis = recebidos.filter((item) => !item.itemExcluido && (number(item.maximoAdesao) || 0) > 0 && item.numeroControlePncpAta && item.numeroItem)
+  const itensValidos = recebidos.filter((item) => item.numeroControlePncpAta && item.numeroItem)
+  const elegiveis = itensValidos.filter((item) => !item.itemExcluido && (number(item.maximoAdesao) || 0) > 0)
   let gravados = 0
   for (const item of elegiveis) {
     const data = itemAdesaoData(item)
@@ -173,7 +174,7 @@ export async function sincronizarItensAdesao({
     gravados += 1
   }
   return {
-    recebidos: recebidos.length, elegiveis: elegiveis.length, gravados, pagina,
+    recebidos: recebidos.length, armazenados: itensValidos.length, elegiveis: elegiveis.length, gravados, pagina,
     totalPaginas: resposta.totalPaginas || 1,
     proximaPagina: pagina < (resposta.totalPaginas || 1) ? pagina + 1 : null,
     janela: { dataVigenciaInicialMin, dataVigenciaInicialMax },

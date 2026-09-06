@@ -15,7 +15,8 @@ const data = (valor) => typeof valor === 'string' && valor ? new Date(`${valor.s
 const datetime = (valor) => typeof valor === 'string' && valor ? new Date(valor) : null
 const esperar = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-function janela() {
+function janela(inicioInformado, fimInformado) {
+  if (inicioInformado && fimInformado) return { inicio: inicioInformado, fim: fimInformado }
   const inicio = new Date()
   const fim = new Date(inicio.getTime() + 365 * 86400000)
   return { inicio: inicio.toISOString().slice(0, 10), fim: fim.toISOString().slice(0, 10) }
@@ -40,7 +41,7 @@ function itemData(item, sincronizadoEm) {
     nomeRazaoSocialFornecedor: String(item.nomeRazaoSocialFornecedor || '') || null,
     quantidadeHomologadaItem: numero(item.quantidadeHomologadaItem), quantidadeHomologadaVencedor: numero(item.quantidadeHomologadaVencedor),
     quantidadeEmpenhada: numero(item.quantidadeEmpenhada), valorUnitario: numero(item.valorUnitario), valorTotal: numero(item.valorTotal),
-    maximoAdesao: numero(item.maximoAdesao) || 0, itemExcluido: false,
+    maximoAdesao: numero(item.maximoAdesao) || 0, itemExcluido: Boolean(item.itemExcluido),
     dataHoraInclusao: datetime(item.dataHoraInclusao), dataHoraAtualizacao: datetime(item.dataHoraAtualizacao), sincronizadoEm,
   }
 }
@@ -58,23 +59,24 @@ async function consultarPagina(pagina, intervalo) {
 
 let janelaAtual
 
-export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial = 1 } = {}) {
-  janelaAtual = janela()
+export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial = 1, dataInicialMin, dataInicialMax } = {}) {
+  janelaAtual = janela(dataInicialMin, dataInicialMax)
   const inicioCarga = new Date()
   let pagina = paginaInicial
   let recebidos = 0; let elegiveis = 0; let gravados = 0; let removidos = 0; let totalPaginas = 1
-  const limitePaginas = limite > 0 ? Math.ceil(limite / PAGE_SIZE) : Number.MAX_SAFE_INTEGER
   console.log(`ARP adesão: janela ${janelaAtual.inicio} até ${janelaAtual.fim}; intervalo ${intervalo}ms.`)
 
-  while (pagina <= totalPaginas && pagina - paginaInicial < limitePaginas) {
+  while (pagina <= totalPaginas) {
     const resposta = await consultarPagina(pagina, intervalo)
     totalPaginas = Number(resposta.totalPaginas || 1)
-    const restante = limite > 0 ? limite - recebidos : Number.MAX_SAFE_INTEGER
-    const itens = (resposta.resultado || []).slice(0, restante)
+    const itens = resposta.resultado || []
     recebidos += itens.length
-    const elegiveisPagina = itens.filter((item) => !item.itemExcluido && numero(item.maximoAdesao) > 0 && item.numeroControlePncpAta && item.numeroItem)
-    elegiveis += elegiveisPagina.length
-    for (const item of elegiveisPagina) {
+    const hojeTexto = new Date().toISOString().slice(0, 10)
+    const itensValidosPagina = itens.filter((item) => item.numeroControlePncpAta && item.numeroItem && !item.itemExcluido && numero(item.maximoAdesao) > 0 && String(item.dataVigenciaFinal || '').slice(0, 10) >= hojeTexto)
+    const restanteElegiveis = limite > 0 ? limite - elegiveis : Number.MAX_SAFE_INTEGER
+    const itensParaGravar = itensValidosPagina.slice(0, restanteElegiveis)
+    elegiveis += itensParaGravar.length
+    for (const item of itensParaGravar) {
       const dados = itemData(item, inicioCarga)
       await prisma.arpItemAdesao.upsert({
         where: { numeroControlePncpAta_numeroItem: { numeroControlePncpAta: dados.numeroControlePncpAta, numeroItem: dados.numeroItem } },
@@ -83,21 +85,22 @@ export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial
       })
       gravados += 1
     }
-    console.log(`Página ${pagina}/${totalPaginas}: ${itens.length} recebidos, ${elegiveisPagina.length} elegíveis.`)
-    if (limite > 0 && recebidos >= limite) break
+    console.log(`Página ${pagina}/${totalPaginas}: ${itens.length} recebidos, ${itensParaGravar.length} elegíveis gravados.`)
+    if (limite > 0 && elegiveis >= limite) break
     pagina += 1
   }
 
+  const hoje = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`)
+  const resultado = await prisma.arpItemAdesao.deleteMany({ where: { dataVigenciaFinal: { lt: hoje } } })
+  removidos = resultado.count
   const cargaCompleta = limite === 0 && paginaInicial === 1 && pagina > totalPaginas
-  if (cargaCompleta) {
-    const resultado = await prisma.arpItemAdesao.deleteMany({ where: { sincronizadoEm: { lt: inicioCarga } } })
-    removidos = resultado.count
-  }
-  return { recebidos, elegiveis, gravados, removidos, paginaFinal: pagina, totalPaginas, cargaCompleta, janela: janelaAtual }
+  /* Registros vigentes não são removidos por não aparecerem como disponíveis.
+     O máximo e a situação de exclusão permanecem atualizados na própria tabela. */
+  return { recebidos, armazenados: gravados, disponiveis: elegiveis, elegiveis, gravados, removidos, paginaFinal: pagina, totalPaginas, cargaCompleta, janela: janelaAtual }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const resultado = await sincronizar({ limite: Number(argumento('limite', 0)), intervalo: Number(argumento('intervalo', 15000)), paginaInicial: Number(argumento('pagina', 1)) })
+  const resultado = await sincronizar({ limite: Number(argumento('limite', 0)), intervalo: Number(argumento('intervalo', 15000)), paginaInicial: Number(argumento('pagina', 1)), dataInicialMin: argumento('data-inicial-min', ''), dataInicialMax: argumento('data-inicial-max', '') })
   console.log(JSON.stringify(resultado, null, 2))
   await prisma.$disconnect()
 }
