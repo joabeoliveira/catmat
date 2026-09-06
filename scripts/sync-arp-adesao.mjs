@@ -63,7 +63,10 @@ export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial
   janelaAtual = janela(dataInicialMin, dataInicialMax)
   const inicioCarga = new Date()
   let pagina = paginaInicial
-  let recebidos = 0; let elegiveis = 0; let gravados = 0; let removidos = 0; let totalPaginas = 1
+  let recebidos = 0; let elegiveis = 0; let gravados = 0; let removidos = 0
+  // Ao retomar uma carga, a primeira página consultada pode ser maior que 1.
+  // O laço precisa executar essa consulta para descobrir o total real da API.
+  let totalPaginas = Math.max(1, paginaInicial)
   console.log(`ARP adesão: janela ${janelaAtual.inicio} até ${janelaAtual.fim}; intervalo ${intervalo}ms.`)
 
   while (pagina <= totalPaginas) {
