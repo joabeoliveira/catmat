@@ -15,7 +15,7 @@ async function sidra(table: string, variable: string, name: string): Promise<Poi
 async function igpm(): Promise<Point[]> {
   const end = new Date(); const start = new Date(); start.setMonth(start.getMonth() - 24)
   const fmt = (date: Date) => `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
-  const response = await fetch(`${BCB}/189/dados?formato=json&dataInicial=${fmt(start)}&dataFinal=${fmt(end)}`, { cache: 'no-store' })
+  const response = await fetch(`${BCB}.189/dados?formato=json&dataInicial=${fmt(start)}&dataFinal=${fmt(end)}`, { cache: 'no-store' })
   if (!response.ok) throw new Error(`BCB ${response.status}`)
   const data = await response.json() as Array<{ data: string; valor: string }>
   return data.map((item) => { const [day, month, year] = item.data.split('/').map(Number); return { name: 'IGPM', seriesCode: 'BCB-189', date: new Date(year, month - 1, 1), value: Number(item.valor) } }).filter((item) => Number.isFinite(item.value))
