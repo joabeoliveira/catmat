@@ -33,9 +33,10 @@ export async function createContract(input: ContractInput) {
   if (!baseDate) throw new Error('Informe a data-base.')
   const nextAdjustment = new Date(baseDate)
   nextAdjustment.setFullYear(nextAdjustment.getFullYear() + 1)
+  const normalizedIndex = input.indexName === 'IGP-M' ? 'IGPM' : input.indexName
   const contract = await prisma.contract.create({ data: {
     contractNumber: input.contractNumber.trim(), description: input.description.trim(), supplierName: input.supplierName.trim(), supplierDocument: input.supplierDocument?.trim() || null,
-    initialValue: input.initialValue, currentValue: input.initialValue, indexName: input.indexName, baseDateType: input.baseDateType, baseDate, nextAdjustment,
+    initialValue: input.initialValue, currentValue: input.initialValue, indexName: normalizedIndex, baseDateType: input.baseDateType, baseDate, nextAdjustment,
     startDate: date(input.startDate), endDate: date(input.endDate), uasgCode: input.uasgCode?.trim() || null, organName: input.organName?.trim() || null,
   } })
   revalidatePath('/contratos')
