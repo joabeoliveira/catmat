@@ -6,6 +6,7 @@ import { calculateContractAdjustment } from '@/lib/contract-adjustments'
 import { findIndex } from '@/lib/economic-indexes'
 
 export type ContractInput = {
+  organizationId: string
   contractNumber: string
   description: string
   supplierName: string
@@ -20,13 +21,27 @@ export type ContractInput = {
   organName?: string
 }
 
+export type OrganizationInput = { name: string; cnpj?: string; uasgCode?: string; city?: string; state?: string }
+
 function date(value?: string) { return value ? new Date(`${value}T12:00:00`) : undefined }
 
-export async function listContracts() {
-  return prisma.contract.findMany({ orderBy: { nextAdjustment: 'asc' }, include: { _count: { select: { adjustments: true } } } })
+export async function listOrganizations() {
+  return prisma.organization.findMany({ where: { active: true }, orderBy: { name: 'asc' } })
+}
+
+export async function createOrganization(input: OrganizationInput) {
+  if (!input.name.trim()) throw new Error('Informe o nome do órgão.')
+  const organization = await prisma.organization.create({ data: { name: input.name.trim(), cnpj: input.cnpj?.trim() || null, uasgCode: input.uasgCode?.trim() || null, city: input.city?.trim() || null, state: input.state?.trim().toUpperCase() || null } })
+  revalidatePath('/contratos')
+  return organization.id
+}
+
+export async function listContracts(organizationId?: string) {
+  return prisma.contract.findMany({ where: organizationId ? { organizationId } : undefined, orderBy: { nextAdjustment: 'asc' }, include: { _count: { select: { adjustments: true } } } })
 }
 
 export async function createContract(input: ContractInput) {
+  if (!input.organizationId) throw new Error('Selecione o órgão responsável pelo contrato.')
   if (!input.contractNumber.trim() || !input.description.trim() || !input.supplierName.trim()) throw new Error('Preencha número, objeto e contratado.')
   if (!Number.isFinite(input.initialValue) || input.initialValue < 0) throw new Error('Informe um valor inicial válido.')
   const baseDate = date(input.baseDate)
@@ -37,7 +52,7 @@ export async function createContract(input: ContractInput) {
   const contract = await prisma.contract.create({ data: {
     contractNumber: input.contractNumber.trim(), description: input.description.trim(), supplierName: input.supplierName.trim(), supplierDocument: input.supplierDocument?.trim() || null,
     initialValue: input.initialValue, currentValue: input.initialValue, indexName: normalizedIndex, baseDateType: input.baseDateType, baseDate, nextAdjustment,
-    startDate: date(input.startDate), endDate: date(input.endDate), uasgCode: input.uasgCode?.trim() || null, organName: input.organName?.trim() || null,
+    startDate: date(input.startDate), endDate: date(input.endDate), uasgCode: input.uasgCode?.trim() || null, organName: input.organName?.trim() || null, organizationId: input.organizationId,
   } })
   revalidatePath('/contratos')
   return contract.id

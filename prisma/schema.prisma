@@ -498,16 +498,36 @@ model Contract {
   endDate          DateTime?      @map("end_date") @db.Date
   uasgCode         String?        @map("uasg_code")
   organName        String?        @map("organ_name")
+  organizationId   String?        @map("organization_id")
   source           String?
   status           ContractStatus @default(ACTIVE)
   adjustments      Adjustment[]
+  organization     Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
   @@index([contractNumber])
   @@index([nextAdjustment])
   @@index([status])
+  @@index([organizationId])
   @@map("contracts")
+}
+
+model Organization {
+  id        String     @id @default(uuid())
+  name      String
+  cnpj      String?    @unique
+  uasgCode  String?    @map("uasg_code")
+  city      String?
+  state     String?    @db.Char(2)
+  active    Boolean    @default(true)
+  contracts Contract[]
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@index([name])
+  @@index([active])
+  @@map("organizations")
 }
 
 model Adjustment {
