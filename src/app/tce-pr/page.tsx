@@ -15,7 +15,7 @@ export default function TcePrPage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl shadow-black/20 print:hidden dark:border-slate-800 dark:bg-slate-900/80 sm:p-6">
           <p className="text-sm font-medium uppercase tracking-[0.3em] text-cyan-600 dark:text-cyan-400">
-            TCE-PR
+            Módulo TCE-PR
           </p>
           <h1 className="mt-3 text-2xl font-semibold text-slate-900 dark:text-white sm:text-3xl">
             Pesquisa de preços de licitações homologadas

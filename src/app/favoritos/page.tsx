@@ -23,7 +23,7 @@ export default function FavoritosPage() {
     <main className="min-h-screen bg-slate-50 px-3 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-4 sm:py-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/80 sm:p-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-cyan-600 dark:text-cyan-400">Sua lista</p>
+          <p className="text-sm uppercase tracking-[0.3em] text-cyan-600 dark:text-cyan-400">Módulo Favoritos</p>
           <h1 className="mt-3 flex items-center gap-3 text-2xl font-semibold text-slate-900 dark:text-white sm:text-3xl">
             <Heart className="h-7 w-7 text-rose-600 dark:text-rose-400" fill="currentColor" />
             Favoritos
