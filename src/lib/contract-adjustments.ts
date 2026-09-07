@@ -12,7 +12,12 @@ export function calculateRetroactive(input: { monthlyValue: number; factor: numb
   const months = Math.max(0, Math.floor((application.getTime() - due.getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
   const adjustedMonthlyValue = money(input.monthlyValue * (1 + input.factor))
   const monthlyDifference = money(adjustedMonthlyValue - input.monthlyValue)
-  return { monthsOverdue: months, monthlyDifference, totalRetroactive: money(monthlyDifference * months) }
+  const breakdown = Array.from({ length: months }, (_, index) => {
+    const monthDate = new Date(due)
+    monthDate.setMonth(monthDate.getMonth() + index)
+    return { month: new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(monthDate), originalValue: input.monthlyValue, adjustedValue: adjustedMonthlyValue, difference: monthlyDifference }
+  })
+  return { monthsOverdue: months, monthlyDifference, totalRetroactive: money(monthlyDifference * months), breakdown }
 }
 
 function money(value: number) {
