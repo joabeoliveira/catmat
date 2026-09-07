@@ -29,6 +29,7 @@ export function SiteHeader() {
     ['/tce-pr', 'TCE-PR'],
     ['/arp', 'ARP'],
     ['/cnpj', 'CNPJ'],
+    ['/contratos', 'CONTRATOS'],
   ] as const
 
   return (

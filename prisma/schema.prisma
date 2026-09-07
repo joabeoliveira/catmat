@@ -54,16 +54,16 @@ model CatserItem {
 
 // Medicamentos CATMAT — carga de referencia a partir de CSV
 model MedicamentoCatmat {
-  id                  Int      @id @default(autoincrement())
-  codigoBr            String   @db.VarChar(20)
-  catmat              String   @db.VarChar(30)
+  id                  Int                      @id @default(autoincrement())
+  codigoBr            String                   @db.VarChar(20)
+  catmat              String                   @db.VarChar(30)
   principioAtivo      String
   concentracao        String
   formaFarmaceutica   String
   unidadeFornecimento String
   busca_tsv           Unsupported("tsvector")?
-  importadoEm         DateTime @default(now())
-  atualizadoEm        DateTime @default(now()) @updatedAt
+  importadoEm         DateTime                 @default(now())
+  atualizadoEm        DateTime                 @default(now()) @updatedAt
 
   @@unique([codigoBr, catmat, principioAtivo, concentracao, formaFarmaceutica, unidadeFornecimento], map: "medicamentos_catmat_dados_uidx")
   @@index([catmat])
@@ -101,12 +101,12 @@ model SalarioCbo {
 }
 
 model SalarioCboOcupacao {
-  cbo              Int      @id
-  familiaCbo       Int
-  titulo           String
+  cbo               Int      @id
+  familiaCbo        Int
+  titulo            String
   perfilOcupacional String?
-  fonte            String?
-  atualizadoEm     DateTime @default(now())
+  fonte             String?
+  atualizadoEm      DateTime @default(now())
 
   @@index([familiaCbo])
   @@index([titulo])
@@ -239,32 +239,32 @@ model CompraItem {
 
 // Atas de Registro de Preços do módulo ARP do Compras.gov.br
 model ArpAta {
-  id                       String    @id @default(cuid())
-  numeroControlePncpAta    String    @unique @map("numero_controle_pncp_ata")
-  numeroControlePncpCompra String?   @map("numero_controle_pncp_compra")
-  numeroAtaRegistroPreco   String    @map("numero_ata_registro_preco")
-  codigoUnidadeGerenciadora String   @map("codigo_unidade_gerenciadora")
-  nomeUnidadeGerenciadora  String?
-  codigoOrgao              Int?      @map("codigo_orgao")
-  nomeOrgao                String?
-  linkAtaPncp              String?   @map("link_ata_pncp")
-  linkCompraPncp           String?   @map("link_compra_pncp")
-  numeroCompra             String?   @map("numero_compra")
-  anoCompra                String?   @map("ano_compra")
-  codigoModalidadeCompra   String?   @map("codigo_modalidade_compra")
-  nomeModalidadeCompra     String?   @map("nome_modalidade_compra")
-  dataAssinatura           DateTime? @map("data_assinatura") @db.Date
-  dataVigenciaInicial      DateTime? @map("data_vigencia_inicial") @db.Date
-  dataVigenciaFinal        DateTime? @map("data_vigencia_final") @db.Date
-  valorTotal               Float?    @map("valor_total")
-  statusAta                String?   @map("status_ata")
-  objeto                   String?   @db.Text
-  quantidadeItens          Int?      @map("quantidade_itens")
-  dataHoraAtualizacao      DateTime? @map("data_hora_atualizacao")
-  dataHoraInclusao         DateTime? @map("data_hora_inclusao")
-  dataHoraExclusao         DateTime? @map("data_hora_exclusao")
-  ataExcluido              Boolean   @default(false) @map("ata_excluido")
-  sincronizadoEm           DateTime  @default(now()) @map("sincronizado_em")
+  id                        String    @id @default(cuid())
+  numeroControlePncpAta     String    @unique @map("numero_controle_pncp_ata")
+  numeroControlePncpCompra  String?   @map("numero_controle_pncp_compra")
+  numeroAtaRegistroPreco    String    @map("numero_ata_registro_preco")
+  codigoUnidadeGerenciadora String    @map("codigo_unidade_gerenciadora")
+  nomeUnidadeGerenciadora   String?
+  codigoOrgao               Int?      @map("codigo_orgao")
+  nomeOrgao                 String?
+  linkAtaPncp               String?   @map("link_ata_pncp")
+  linkCompraPncp            String?   @map("link_compra_pncp")
+  numeroCompra              String?   @map("numero_compra")
+  anoCompra                 String?   @map("ano_compra")
+  codigoModalidadeCompra    String?   @map("codigo_modalidade_compra")
+  nomeModalidadeCompra      String?   @map("nome_modalidade_compra")
+  dataAssinatura            DateTime? @map("data_assinatura") @db.Date
+  dataVigenciaInicial       DateTime? @map("data_vigencia_inicial") @db.Date
+  dataVigenciaFinal         DateTime? @map("data_vigencia_final") @db.Date
+  valorTotal                Float?    @map("valor_total")
+  statusAta                 String?   @map("status_ata")
+  objeto                    String?   @db.Text
+  quantidadeItens           Int?      @map("quantidade_itens")
+  dataHoraAtualizacao       DateTime? @map("data_hora_atualizacao")
+  dataHoraInclusao          DateTime? @map("data_hora_inclusao")
+  dataHoraExclusao          DateTime? @map("data_hora_exclusao")
+  ataExcluido               Boolean   @default(false) @map("ata_excluido")
+  sincronizadoEm            DateTime  @default(now()) @map("sincronizado_em")
 
   itens ArpItem[]
 
@@ -278,31 +278,31 @@ model ArpAta {
 
 // Itens da ata, carregados pelo endpoint 2_consultarARPItem
 model ArpItem {
-  id                         String   @id @default(cuid())
-  ataId                      String   @map("ata_id")
-  numeroControlePncpAta      String   @map("numero_controle_pncp_ata")
-  numeroItem                 String   @map("numero_item")
-  codigoItem                 Int?     @map("codigo_item")
-  descricaoItem              String?  @map("descricao_item") @db.Text
-  descricaoDetalhada         String?  @map("descricao_detalhada") @db.Text
-  tipoItem                   String?  @map("tipo_item")
-  numeroCompra               String?  @map("numero_compra")
-  anoCompra                  String?  @map("ano_compra")
-  dataAssinatura             DateTime? @map("data_assinatura") @db.Date
-  dataVigenciaInicial        DateTime? @map("data_vigencia_inicial") @db.Date
-  dataVigenciaFinal          DateTime? @map("data_vigencia_final") @db.Date
-  niFornecedor               String?  @map("ni_fornecedor")
-  nomeRazaoSocialFornecedor  String?  @map("nome_razao_social_fornecedor")
-  quantidadeHomologadaVencedor Float? @map("quantidade_homologada_vencedor")
-  quantidadeHomologadaItem   Float?   @map("quantidade_homologada_item")
-  quantidadeRegistrada       Float?   @map("quantidade_registrada")
-  unidadeMedida              String?  @map("unidade_medida")
-  valorUnitario              Float?   @map("valor_unitario")
-  valorTotal                 Float?   @map("valor_total")
-  maximoAdesao               Float?   @map("maximo_adesao")
-  numeroControlePncpCompra   String?  @map("numero_controle_pncp_compra")
-  idCompra                   String?  @map("id_compra")
-  atualizadoEm               DateTime @default(now()) @updatedAt @map("atualizado_em")
+  id                           String    @id @default(cuid())
+  ataId                        String    @map("ata_id")
+  numeroControlePncpAta        String    @map("numero_controle_pncp_ata")
+  numeroItem                   String    @map("numero_item")
+  codigoItem                   Int?      @map("codigo_item")
+  descricaoItem                String?   @map("descricao_item") @db.Text
+  descricaoDetalhada           String?   @map("descricao_detalhada") @db.Text
+  tipoItem                     String?   @map("tipo_item")
+  numeroCompra                 String?   @map("numero_compra")
+  anoCompra                    String?   @map("ano_compra")
+  dataAssinatura               DateTime? @map("data_assinatura") @db.Date
+  dataVigenciaInicial          DateTime? @map("data_vigencia_inicial") @db.Date
+  dataVigenciaFinal            DateTime? @map("data_vigencia_final") @db.Date
+  niFornecedor                 String?   @map("ni_fornecedor")
+  nomeRazaoSocialFornecedor    String?   @map("nome_razao_social_fornecedor")
+  quantidadeHomologadaVencedor Float?    @map("quantidade_homologada_vencedor")
+  quantidadeHomologadaItem     Float?    @map("quantidade_homologada_item")
+  quantidadeRegistrada         Float?    @map("quantidade_registrada")
+  unidadeMedida                String?   @map("unidade_medida")
+  valorUnitario                Float?    @map("valor_unitario")
+  valorTotal                   Float?    @map("valor_total")
+  maximoAdesao                 Float?    @map("maximo_adesao")
+  numeroControlePncpCompra     String?   @map("numero_controle_pncp_compra")
+  idCompra                     String?   @map("id_compra")
+  atualizadoEm                 DateTime  @default(now()) @updatedAt @map("atualizado_em")
 
   ata ArpAta @relation(fields: [ataId], references: [id], onDelete: Cascade)
 
@@ -316,36 +316,36 @@ model ArpItem {
 
 // Licitações municipais homologadas no TCE-PR (carga XML — preços de referência)
 model ArpItemAdesao {
-  id String @id @default(cuid())
-  numeroControlePncpAta String @map("numero_controle_pncp_ata")
-  numeroAtaRegistroPreco String? @map("numero_ata_registro_preco")
-  codigoUnidadeGerenciadora String? @map("codigo_unidade_gerenciadora")
-  nomeUnidadeGerenciadora String? @map("nome_unidade_gerenciadora")
-  numeroControlePncpCompra String? @map("numero_controle_pncp_compra")
-  numeroCompra String? @map("numero_compra")
-  anoCompra String? @map("ano_compra")
-  codigoModalidadeCompra String? @map("codigo_modalidade_compra")
-  nomeModalidadeCompra String? @map("nome_modalidade_compra")
-  dataAssinatura DateTime? @map("data_assinatura") @db.Date
-  dataVigenciaInicial DateTime? @map("data_vigencia_inicial") @db.Date
-  dataVigenciaFinal DateTime? @map("data_vigencia_final") @db.Date
-  numeroItem String @map("numero_item")
-  codigoItem Int? @map("codigo_item")
-  descricaoItem String? @map("descricao_item") @db.Text
-  tipoItem String? @map("tipo_item")
-  classificacaoFornecedor String? @map("classificacao_fornecedor")
-  niFornecedor String? @map("ni_fornecedor")
-  nomeRazaoSocialFornecedor String? @map("nome_razao_social_fornecedor")
-  quantidadeHomologadaItem Float? @map("quantidade_homologada_item")
-  quantidadeHomologadaVencedor Float? @map("quantidade_homologada_vencedor")
-  quantidadeEmpenhada Float? @map("quantidade_empenhada")
-  valorUnitario Float? @map("valor_unitario")
-  valorTotal Float? @map("valor_total")
-  maximoAdesao Float @map("maximo_adesao")
-  itemExcluido Boolean @default(false) @map("item_excluido")
-  dataHoraInclusao DateTime? @map("data_hora_inclusao")
-  dataHoraAtualizacao DateTime? @map("data_hora_atualizacao")
-  sincronizadoEm DateTime @default(now()) @map("sincronizado_em")
+  id                           String    @id @default(cuid())
+  numeroControlePncpAta        String    @map("numero_controle_pncp_ata")
+  numeroAtaRegistroPreco       String?   @map("numero_ata_registro_preco")
+  codigoUnidadeGerenciadora    String?   @map("codigo_unidade_gerenciadora")
+  nomeUnidadeGerenciadora      String?   @map("nome_unidade_gerenciadora")
+  numeroControlePncpCompra     String?   @map("numero_controle_pncp_compra")
+  numeroCompra                 String?   @map("numero_compra")
+  anoCompra                    String?   @map("ano_compra")
+  codigoModalidadeCompra       String?   @map("codigo_modalidade_compra")
+  nomeModalidadeCompra         String?   @map("nome_modalidade_compra")
+  dataAssinatura               DateTime? @map("data_assinatura") @db.Date
+  dataVigenciaInicial          DateTime? @map("data_vigencia_inicial") @db.Date
+  dataVigenciaFinal            DateTime? @map("data_vigencia_final") @db.Date
+  numeroItem                   String    @map("numero_item")
+  codigoItem                   Int?      @map("codigo_item")
+  descricaoItem                String?   @map("descricao_item") @db.Text
+  tipoItem                     String?   @map("tipo_item")
+  classificacaoFornecedor      String?   @map("classificacao_fornecedor")
+  niFornecedor                 String?   @map("ni_fornecedor")
+  nomeRazaoSocialFornecedor    String?   @map("nome_razao_social_fornecedor")
+  quantidadeHomologadaItem     Float?    @map("quantidade_homologada_item")
+  quantidadeHomologadaVencedor Float?    @map("quantidade_homologada_vencedor")
+  quantidadeEmpenhada          Float?    @map("quantidade_empenhada")
+  valorUnitario                Float?    @map("valor_unitario")
+  valorTotal                   Float?    @map("valor_total")
+  maximoAdesao                 Float     @map("maximo_adesao")
+  itemExcluido                 Boolean   @default(false) @map("item_excluido")
+  dataHoraInclusao             DateTime? @map("data_hora_inclusao")
+  dataHoraAtualizacao          DateTime? @map("data_hora_atualizacao")
+  sincronizadoEm               DateTime  @default(now()) @map("sincronizado_em")
 
   @@unique([numeroControlePncpAta, numeroItem])
   @@index([codigoItem])
@@ -357,33 +357,33 @@ model ArpItemAdesao {
 }
 
 model CnpjEmpresa {
-  id String @id @default(cuid())
-  cnpj String @unique
-  razaoSocial String? @map("razao_social")
-  nomeFantasia String? @map("nome_fantasia")
-  situacaoCadastral String? @map("situacao_cadastral")
+  id                    String    @id @default(cuid())
+  cnpj                  String    @unique
+  razaoSocial           String?   @map("razao_social")
+  nomeFantasia          String?   @map("nome_fantasia")
+  situacaoCadastral     String?   @map("situacao_cadastral")
   dataSituacaoCadastral DateTime? @map("data_situacao_cadastral") @db.Date
-  dataInicioAtividade DateTime? @map("data_inicio_atividade") @db.Date
-  naturezaJuridica String? @map("natureza_juridica")
-  porte String?
-  capitalSocial Float? @map("capital_social")
-  cnaeFiscal String? @map("cnae_fiscal")
-  cnaeFiscalDescricao String? @map("cnae_fiscal_descricao") @db.Text
-  logradouro String?
-  numero String?
-  complemento String?
-  bairro String?
-  municipio String?
-  uf String?
-  cep String?
-  email String?
-  telefone String?
-  socios Json?
-  atividadesSecundarias Json? @map("atividades_secundarias")
-  dadosBrutos Json? @map("dados_brutos")
-  fonte String? @default("BrasilAPI")
-  consultadoEm DateTime @default(now()) @map("consultado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+  dataInicioAtividade   DateTime? @map("data_inicio_atividade") @db.Date
+  naturezaJuridica      String?   @map("natureza_juridica")
+  porte                 String?
+  capitalSocial         Float?    @map("capital_social")
+  cnaeFiscal            String?   @map("cnae_fiscal")
+  cnaeFiscalDescricao   String?   @map("cnae_fiscal_descricao") @db.Text
+  logradouro            String?
+  numero                String?
+  complemento           String?
+  bairro                String?
+  municipio             String?
+  uf                    String?
+  cep                   String?
+  email                 String?
+  telefone              String?
+  socios                Json?
+  atividadesSecundarias Json?     @map("atividades_secundarias")
+  dadosBrutos           Json?     @map("dados_brutos")
+  fonte                 String?   @default("BrasilAPI")
+  consultadoEm          DateTime  @default(now()) @map("consultado_em")
+  atualizadoEm          DateTime  @updatedAt @map("atualizado_em")
 
   @@index([razaoSocial])
   @@index([nomeFantasia])
@@ -393,45 +393,45 @@ model CnpjEmpresa {
 }
 
 model LicitacaoVencedorTcePr {
-  id                     Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // Dados da entidade e município
-  cdIbge                 String?
-  nmMunicipio            String
-  idPessoa               Int?
-  nmEntidade             String
+  cdIbge      String?
+  nmMunicipio String
+  idPessoa    Int?
+  nmEntidade  String
 
   // Dados do processo licitatório
-  idLicitacao            Int
-  nrAnoLicitacao         Int
-  nrLicitacao            Int
-  dsModalidadeLicitacao  String
-  dtHomologacao          DateTime?
+  idLicitacao           Int
+  nrAnoLicitacao        Int
+  nrLicitacao           Int
+  dsModalidadeLicitacao String
+  dtHomologacao         DateTime?
 
   // Fornecedor / proponente
-  nrDocumento            String
-  nmPessoa               String
+  nrDocumento String
+  nmPessoa    String
 
   // Dados do item e proposta
-  nrLote                 Int       @default(1)
-  nrItem                 Int
-  dsItem                 String    @db.Text
-  idUnidadeMedida        Int?
-  dsUnidadeMedida        String?
-  nrQuantidade           Float?
+  nrLote          Int     @default(1)
+  nrItem          Int
+  dsItem          String  @db.Text
+  idUnidadeMedida Int?
+  dsUnidadeMedida String?
+  nrQuantidade    Float?
 
   // Valores de referência (mínimo / máximo do item)
-  vlMinimoUnitarioItem   Float?
-  vlMinimoTotal          Float?
-  vlMaximoUnitarioItem   Float?
-  vlMaximoTotal          Float?
+  vlMinimoUnitarioItem Float?
+  vlMinimoTotal        Float?
+  vlMaximoUnitarioItem Float?
+  vlMaximoTotal        Float?
 
   // Valores da proposta e do vencedor
-  nrQuantidadeProposta   Float?
-  vlPropostaItem         Float?
-  nrQuantidadeVencedor   Float?
-  vlLicitacaoVencedor    Float?
-  nrClassificacao        Int
+  nrQuantidadeProposta Float?
+  vlPropostaItem       Float?
+  nrQuantidadeVencedor Float?
+  vlLicitacaoVencedor  Float?
+  nrClassificacao      Int
 
   // Condições comerciais e prazos
   dsFormaPagamento       String?
@@ -442,11 +442,11 @@ model LicitacaoVencedorTcePr {
   dtPrazoEntregaProposta DateTime?
 
   // Controle SIMAM / TCE-PR
-  ultimoEnvioSimam       String?
-  dataReferencia         String?
-  importadoEm            DateTime  @default(now())
+  ultimoEnvioSimam String?
+  dataReferencia   String?
+  importadoEm      DateTime @default(now())
 
-  busca_tsv              Unsupported("tsvector")?
+  busca_tsv Unsupported("tsvector")?
 
   @@unique([idLicitacao, nrLote, nrItem, nrDocumento, nrClassificacao])
   @@index([cdIbge, nrAnoLicitacao])
@@ -479,4 +479,82 @@ model SalarioCboAtividade {
   @@index([familiaCbo])
   @@index([grandeArea])
   @@map("SalarioCboAtividade")
+}
+
+// Gestao de contratos e calculo de reajustes (Lei 14.133/2021)
+model Contract {
+  id               String         @id @default(uuid())
+  contractNumber   String         @map("contract_number")
+  description      String         @db.Text
+  supplierName     String         @map("supplier_name")
+  supplierDocument String?        @map("supplier_document")
+  initialValue     Float          @map("initial_value")
+  currentValue     Float          @map("current_value")
+  indexName        String         @map("index_name")
+  baseDateType     BaseDateType   @map("base_date_type")
+  baseDate         DateTime       @map("base_date") @db.Date
+  nextAdjustment   DateTime       @map("next_adjustment") @db.Date
+  startDate        DateTime?      @map("start_date") @db.Date
+  endDate          DateTime?      @map("end_date") @db.Date
+  uasgCode         String?        @map("uasg_code")
+  organName        String?        @map("organ_name")
+  source           String?
+  status           ContractStatus @default(ACTIVE)
+  adjustments      Adjustment[]
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  @@index([contractNumber])
+  @@index([nextAdjustment])
+  @@index([status])
+  @@map("contracts")
+}
+
+model Adjustment {
+  id             String           @id @default(uuid())
+  contractId     String           @map("contract_id")
+  contract       Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  referenceDate  DateTime         @map("reference_date") @db.Date
+  appliedIndex   Float            @map("applied_index")
+  initialIndex   Float            @map("initial_index")
+  factor         Float
+  oldValue       Float            @map("old_value")
+  newValue       Float            @map("new_value")
+  retroactiveVal Float?           @map("retroactive_val")
+  status         AdjustmentStatus @default(PENDING)
+  notes          String?          @db.Text
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([contractId, referenceDate])
+  @@map("adjustments")
+}
+
+model EconomicIndex {
+  id         String   @id @default(uuid())
+  name       String
+  seriesCode String   @map("series_code")
+  date       DateTime @db.Date
+  value      Float
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([name, date])
+  @@map("economic_indexes")
+}
+
+enum BaseDateType {
+  BUDGET_DATE
+  PROPOSAL_DATE
+}
+
+enum AdjustmentStatus {
+  PENDING
+  APPLIED
+  WAIVED
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
 }
