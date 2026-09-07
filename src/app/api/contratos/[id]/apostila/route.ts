@@ -18,7 +18,7 @@ const text = (value: string, options?: { bold?: boolean; color?: string; center?
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const body = await request.json().catch(() => ({})) as { initialIndex?: number; currentIndex?: number; referenceDate?: string; applicationDate?: string; monthlyValue?: number }
+    const body = await request.json().catch(() => ({})) as { initialIndex?: number; currentIndex?: number; referenceDate?: string; applicationDate?: string }
     const contract = await prisma.contract.findUnique({ where: { id: params.id }, include: { adjustments: { orderBy: { referenceDate: 'desc' }, take: 1 } } })
     if (!contract) return NextResponse.json({ message: 'Contrato não encontrado.' }, { status: 404 })
     const referenceDate = body.referenceDate ? new Date(body.referenceDate) : contract.nextAdjustment
@@ -28,7 +28,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const calculation = calculateContractAdjustment({ currentValue: contract.currentValue, initialIndex, currentIndex, baseDate: contract.baseDate, referenceDate })
     if (!calculation.valid) return NextResponse.json({ message: calculation.message }, { status: 422 })
     const applicationDate = body.applicationDate ? new Date(body.applicationDate) : new Date()
-    const retroactive = body.monthlyValue && applicationDate > referenceDate ? calculateRetroactive({ monthlyValue: body.monthlyValue, factor: calculation.factor, dueDate: referenceDate, applicationDate }) : null
+    const monthlyValue = contract.currentValue / 12
+    const retroactive = applicationDate > referenceDate ? calculateRetroactive({ monthlyValue, factor: calculation.factor, dueDate: referenceDate, applicationDate }) : null
     const calculationRows: [string, string, string][] = [
       ['Índice na data-base (I₀)', initialIndex.toFixed(6), `Referência disponível até ${initialOfficial ? month(initialOfficial.date) : 'informada na simulação'}`],
       ['Índice atual (I)', currentIndex.toFixed(6), `Referência disponível até ${currentOfficial ? month(currentOfficial.date) : 'informada na simulação'}`],
