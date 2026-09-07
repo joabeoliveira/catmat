@@ -27,3 +27,16 @@ services:
     depends_on:
       - web
     restart: unless-stopped
+
+  indices-worker:
+    image: catmat:production
+    command: ["node", "scripts/economic-index-worker.mjs"]
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      INDICES_SYNC_HORA: ${INDICES_SYNC_HORA:-3}
+      INDICES_SYNC_URL: http://web:3000/api/indices/sync
+    depends_on:
+      - web
+    restart: unless-stopped

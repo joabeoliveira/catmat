@@ -7,6 +7,14 @@ export type AdjustmentCalculation = {
   newValue: number
 }
 
+export function calculateRetroactive(input: { monthlyValue: number; factor: number; dueDate: string | Date; applicationDate: string | Date }) {
+  const due = new Date(input.dueDate); const application = new Date(input.applicationDate)
+  const months = Math.max(0, Math.floor((application.getTime() - due.getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
+  const adjustedMonthlyValue = money(input.monthlyValue * (1 + input.factor))
+  const monthlyDifference = money(adjustedMonthlyValue - input.monthlyValue)
+  return { monthsOverdue: months, monthlyDifference, totalRetroactive: money(monthlyDifference * months) }
+}
+
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }

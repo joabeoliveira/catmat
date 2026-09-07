@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { calculateContractAdjustment } from '@/lib/contract-adjustments'
+import { findIndex } from '@/lib/economic-indexes'
 
 export type ContractInput = {
   contractNumber: string
@@ -46,6 +47,14 @@ export async function simulateAdjustment(input: { contractId: string; initialInd
   if (!contract) throw new Error('Contrato não encontrado.')
   const calculation = calculateContractAdjustment({ currentValue: contract.currentValue, initialIndex: input.initialIndex, currentIndex: input.currentIndex, baseDate: contract.baseDate, referenceDate: input.referenceDate })
   return { calculation, contract: { id: contract.id, number: contract.contractNumber, currentValue: contract.currentValue } }
+}
+
+export async function getOfficialIndexes(input: { contractId: string; referenceDate: string }) {
+  const contract = await prisma.contract.findUnique({ where: { id: input.contractId } })
+  if (!contract) throw new Error('Contrato não encontrado.')
+  const [initial, current] = await Promise.all([findIndex(contract.indexName, contract.baseDate), findIndex(contract.indexName, new Date(input.referenceDate))])
+  if (!initial || !current) throw new Error('Índice não encontrado. Sincronize os índices oficiais primeiro.')
+  return { initial: Number(initial.value), current: Number(current.value), initialDate: initial.date.toISOString(), currentDate: current.date.toISOString() }
 }
 
 export async function applyAdjustment(input: { contractId: string; initialIndex: number; currentIndex: number; referenceDate: string; notes?: string }) {
