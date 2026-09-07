@@ -6,6 +6,7 @@ import { Heart, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { alternarFavorito, listarFavoritos, EVENTO_FAVORITOS, type ItemFavorito } from '@/lib/favoritos'
+import { ModuleHeader } from '@/components/shared/ModuleHeader'
 
 export default function FavoritosPage() {
   const [favoritos, setFavoritos] = useState<ItemFavorito[]>([])
@@ -22,17 +23,7 @@ export default function FavoritosPage() {
   return (
     <main className="min-h-screen bg-slate-50 px-3 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-4 sm:py-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/80 sm:p-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-cyan-600 dark:text-cyan-400">Módulo Favoritos</p>
-          <h1 className="mt-3 flex items-center gap-3 text-2xl font-semibold text-slate-900 dark:text-white sm:text-3xl">
-            <Heart className="h-7 w-7 text-rose-600 dark:text-rose-400" fill="currentColor" />
-            Favoritos
-          </h1>
-          <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">
-            Itens salvos neste navegador para consulta rápida. Use o coração nos resultados de busca ou na página do
-            material para adicionar.
-          </p>
-        </div>
+        <ModuleHeader module="Módulo Favoritos" title="Favoritos" description="Itens salvos neste navegador para consulta rápida. Use o coração nos resultados de busca ou na página do material para adicionar." icon={Heart} />
 
         {carregado && favoritos.length === 0 && (
           <Card>
