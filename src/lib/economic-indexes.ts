@@ -6,14 +6,14 @@ const BCB = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs'
 type Point = { name: string; seriesCode: string; date: Date; value: number }
 
 async function sidra(table: string, variable: string, name: string): Promise<Point[]> {
-  const response = await fetch(`${SIDRA}/t/${table}/n1/all/v/${variable}/p/last%2024/f/c`, { cache: 'no-store' })
+  const response = await fetch(`${SIDRA}/t/${table}/n1/all/v/${variable}/p/last%20120/f/c`, { cache: 'no-store' })
   if (!response.ok) throw new Error(`IBGE SIDRA ${response.status}`)
   const data = await response.json() as Array<Record<string, string>>
   return data.slice(1).map((item) => ({ name, seriesCode: `SIDRA-${table}-${variable}`, date: new Date(Number(item.D3C.slice(0, 4)), Number(item.D3C.slice(4, 6)) - 1, 1), value: Number(item.V) })).filter((item) => Number.isFinite(item.value))
 }
 
 async function igpm(): Promise<Point[]> {
-  const end = new Date(); const start = new Date(); start.setMonth(start.getMonth() - 24)
+  const end = new Date(); const start = new Date(); start.setMonth(start.getMonth() - 120)
   const fmt = (date: Date) => `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
   const response = await fetch(`${BCB}.189/dados?formato=json&dataInicial=${fmt(start)}&dataFinal=${fmt(end)}`, { cache: 'no-store' })
   if (!response.ok) throw new Error(`BCB ${response.status}`)
