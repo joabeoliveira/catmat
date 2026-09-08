@@ -23,6 +23,13 @@ EXCEPTION
 END $$;
 
 ALTER TABLE public.contracts
+  DROP CONSTRAINT IF EXISTS contracts_base_date_type_check,
+  DROP CONSTRAINT IF EXISTS contracts_status_check;
+
+ALTER TABLE public.adjustments
+  DROP CONSTRAINT IF EXISTS adjustments_status_check;
+
+ALTER TABLE public.contracts
   ALTER COLUMN base_date_type DROP DEFAULT,
   ALTER COLUMN base_date_type TYPE public."BaseDateType"
     USING base_date_type::text::public."BaseDateType",
@@ -36,3 +43,13 @@ ALTER TABLE public.adjustments
   ALTER COLUMN status TYPE public."AdjustmentStatus"
     USING status::text::public."AdjustmentStatus",
   ALTER COLUMN status SET DEFAULT 'PENDING'::public."AdjustmentStatus";
+
+ALTER TABLE public.contracts
+  ADD CONSTRAINT contracts_base_date_type_check
+    CHECK (base_date_type IN ('BUDGET_DATE'::public."BaseDateType", 'PROPOSAL_DATE'::public."BaseDateType")),
+  ADD CONSTRAINT contracts_status_check
+    CHECK (status IN ('ACTIVE'::public."ContractStatus", 'EXPIRED'::public."ContractStatus", 'CANCELLED'::public."ContractStatus"));
+
+ALTER TABLE public.adjustments
+  ADD CONSTRAINT adjustments_status_check
+    CHECK (status IN ('PENDING'::public."AdjustmentStatus", 'APPLIED'::public."AdjustmentStatus", 'WAIVED'::public."AdjustmentStatus"));
