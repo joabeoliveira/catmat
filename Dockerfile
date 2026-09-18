@@ -44,7 +44,7 @@ COPY --from=builder /app/scripts ./scripts
 RUN mkdir -p ./dados
 
 # SDK do MinIO para os scripts de import (não entra no trace do standalone do Next)
-RUN npm install --no-save @aws-sdk/client-s3@^3.600.0
+RUN npm install --no-save @aws-sdk/client-s3@^3.600.0 tsx@^4.20.0
 
 RUN ./node_modules/.bin/prisma generate
 RUN ./node_modules/.bin/prisma db push --skip-generate || echo "db push ignorado (sem banco)"
