@@ -30,11 +30,11 @@ function formatarData(data: Date): string {
 
 export function calcularSemanaAnterior(referencia: Date = new Date()): PeriodoAnp {
   const data = normalizarUtc(referencia)
-  const diasDesdeSegunda = (data.getUTCDay() + 6) % 7
-  const segundaAtual = new Date(data)
-  segundaAtual.setUTCDate(segundaAtual.getUTCDate() - diasDesdeSegunda)
+  // A ANP publica as semanas de domingo a sábado.
+  const domingoAtual = new Date(data)
+  domingoAtual.setUTCDate(domingoAtual.getUTCDate() - data.getUTCDay())
 
-  const dataInicio = new Date(segundaAtual)
+  const dataInicio = new Date(domingoAtual)
   dataInicio.setUTCDate(dataInicio.getUTCDate() - 7)
 
   const dataFim = new Date(dataInicio)
