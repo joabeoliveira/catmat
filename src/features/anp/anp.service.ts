@@ -259,26 +259,53 @@ export async function buscarPrecos(filtros: AnpFiltros): Promise<{
   total: number
   semana: SemanaAnp | null
 }> {
-  let semana: SemanaAnp | null = null
+  const semana = await resolverSemanaAnp(filtros)
 
+  if (!semana) return { items: [], total: 0, semana: null }
+
+  const where = criarWherePrecos(semana.id, filtros)
+  const pagina = filtros.pagina || 1
+  const limite = filtros.limite || 50
+
+  const [items, total] = await Promise.all([
+    db.anpPreco.findMany({
+      where,
+      skip: (pagina - 1) * limite,
+      take: limite,
+      orderBy: [
+        { abrangencia: 'asc' },
+        { estado: 'asc' },
+        { municipio: 'asc' },
+        { produto: 'asc' },
+      ],
+    }),
+    db.anpPreco.count({ where }),
+  ])
+
+  return { items, total, semana }
+}
+
+async function resolverSemanaAnp(filtros: AnpFiltros): Promise<SemanaAnp | null> {
   if (filtros.dataInicio || filtros.dataFim) {
-    semana = await db.semanaAnp.findFirst({
+    return db.semanaAnp.findFirst({
       where: {
         ...(filtros.dataInicio ? { dataInicio: new Date(`${filtros.dataInicio}T00:00:00.000Z`) } : {}),
         ...(filtros.dataFim ? { dataFim: new Date(`${filtros.dataFim}T00:00:00.000Z`) } : {}),
         status: 'SUCESSO',
       },
     })
-  } else if (filtros.semanaId) {
-    semana = await db.semanaAnp.findUnique({ where: { id: filtros.semanaId } })
-  } else {
-    semana = await buscarSemanaMaisRecente()
   }
 
-  if (!semana) return { items: [], total: 0, semana: null }
+  if (filtros.semanaId) {
+    return db.semanaAnp.findFirst({ where: { id: filtros.semanaId, status: 'SUCESSO' } })
+  }
 
-  const where: Prisma.AnpPrecoWhereInput = {
-    semanaId: semana.id,
+  return buscarSemanaMaisRecente()
+}
+
+function criarWherePrecos(semanaId: string, filtros: AnpFiltros): Prisma.AnpPrecoWhereInput {
+  return {
+    semanaId,
     ...(filtros.abrangencia ? { abrangencia: filtros.abrangencia } : {}),
     ...(filtros.produto ? { produto: filtros.produto } : {}),
     ...(filtros.unidade ? { unidade: filtros.unidade } : {}),
@@ -290,14 +317,20 @@ export async function buscarPrecos(filtros: AnpFiltros): Promise<{
       ? { regiao: { contains: filtros.regiao, mode: 'insensitive' } }
       : {}),
   }
-  const pagina = filtros.pagina || 1
-  const limite = filtros.limite || 50
+}
 
+export async function buscarPrecosParaExportacao(filtros: AnpFiltros): Promise<{
+  items: Array<Prisma.AnpPrecoGetPayload<{}>>
+  total: number
+  semana: SemanaAnp | null
+}> {
+  const semana = await resolverSemanaAnp(filtros)
+  if (!semana) return { items: [], total: 0, semana: null }
+
+  const where = criarWherePrecos(semana.id, filtros)
   const [items, total] = await Promise.all([
     db.anpPreco.findMany({
       where,
-      skip: (pagina - 1) * limite,
-      take: limite,
       orderBy: [
         { abrangencia: 'asc' },
         { estado: 'asc' },
