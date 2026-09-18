@@ -12,6 +12,7 @@ type Importacao = {
   dataFim: string
   status: 'PENDENTE' | 'PROCESSANDO' | 'SUCESSO' | 'ERRO'
   tamanhoBytes: number
+  hashSha256: string
   processadoEm: string | null
   erro: string | null
   totalPrecos: number
@@ -72,7 +73,7 @@ export function AnpImportStatus() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[850px] text-left text-sm">
               <thead className="border-b border-slate-200 text-xs uppercase text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                <tr><th className="px-3 py-3">Período</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Preços</th><th className="px-3 py-3">Arquivo</th><th className="px-3 py-3">Processado em</th><th className="px-3 py-3">Erro</th></tr>
+                <tr><th className="px-3 py-3">Período</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Preços</th><th className="px-3 py-3">Arquivo</th><th className="px-3 py-3">SHA-256</th><th className="px-3 py-3">Processado em</th><th className="px-3 py-3">Erro</th></tr>
               </thead>
               <tbody>
                 {items.map((item) => (
@@ -81,6 +82,7 @@ export function AnpImportStatus() {
                     <td className="px-3 py-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs dark:bg-slate-800">{statusLabel(item.status)}</span></td>
                     <td className="px-3 py-3">{item.totalPrecos.toLocaleString('pt-BR')}</td>
                     <td className="px-3 py-3">{bytes(item.tamanhoBytes)}</td>
+                    <td className="px-3 py-3 font-mono text-xs" title={item.hashSha256}>{item.hashSha256 ? `${item.hashSha256.slice(0, 12)}…` : '—'}</td>
                     <td className="whitespace-nowrap px-3 py-3">{data(item.processadoEm)}</td>
                     <td className="max-w-sm px-3 py-3 text-rose-600 dark:text-rose-300">{item.erro || '—'}</td>
                   </tr>

@@ -34,6 +34,7 @@ export async function GET(request: Request) {
         tamanhoBytes: semana.tamanhoBytes,
         baixadoEm: semana.baixadoEm,
         processadoEm: semana.processadoEm,
+        hashSha256: semana.hashSha256,
         erro: semana.erro,
         totalPrecos: semana._count.precos,
       })),
