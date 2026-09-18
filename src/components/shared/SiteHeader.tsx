@@ -26,6 +26,7 @@ export function SiteHeader() {
     ['/nfe', 'NF-e'],
     ['/bps', 'BPS'],
     ['/salarios', 'SALÁRIOS'],
+    ['/anp', 'ANP'],
     ['/tce-pr', 'TCE-PR'],
     ['/arp', 'ARP'],
     ['/cnpj', 'CNPJ'],
