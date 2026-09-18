@@ -13,6 +13,7 @@
     "import:salarios": "node ./scripts/import-salarios.mjs",
     "import:medicamentos": "node ./scripts/import-medicamentos.mjs",
     "import:tcepr": "node ./scripts/import-tcepr.mjs",
+    "import:anp": "tsx scripts/import-anp.ts",
     "import:cbo": "node ./scripts/import-cbo-enriquecimento.mjs && node ./scripts/import-cbo-atividades.mjs",
     "import:cbo-ocupacoes": "node ./scripts/import-cbo-enriquecimento.mjs --ocupacao-only",
     "import:cbo-atividades": "node ./scripts/import-cbo-atividades.mjs",

@@ -578,3 +578,81 @@ enum ContractStatus {
   EXPIRED
   CANCELLED
 }
+
+enum AnpAbrangencia {
+  CAPITAIS
+  MUNICIPIOS
+  ESTADOS
+  REGIOES
+  BRASIL
+}
+
+enum AnpProduto {
+  ETANOL_HIDRATADO
+  GASOLINA_COMUM
+  GASOLINA_ADITIVADA
+  OLEO_DIESEL
+  OLEO_DIESEL_S10
+  GLP
+  GNV
+}
+
+enum AnpUnidade {
+  LITRO
+  TREZE_KG
+  METRO_CUBICO
+}
+
+enum AnpImportacaoStatus {
+  PENDENTE
+  PROCESSANDO
+  SUCESSO
+  ERRO
+}
+
+model SemanaAnp {
+  id           String              @id @default(cuid())
+  ano          Int
+  dataInicio   DateTime            @db.Date
+  dataFim      DateTime            @db.Date
+  objectKey    String
+  hashSha256   String              @db.VarChar(64)
+  tamanhoBytes Int
+  status       AnpImportacaoStatus @default(PENDENTE)
+  erro         String?             @db.Text
+  baixadoEm    DateTime?
+  processadoEm DateTime?
+  criadoEm     DateTime            @default(now())
+  atualizadoEm DateTime            @updatedAt
+  precos       AnpPreco[]
+
+  @@unique([dataInicio, dataFim])
+  @@unique([objectKey])
+  @@index([ano, dataInicio])
+  @@index([status])
+}
+
+model AnpPreco {
+  id                String         @id @default(cuid())
+  semanaId          String
+  abrangencia       AnpAbrangencia
+  produto           AnpProduto
+  unidade           AnpUnidade
+  localidade        String
+  estado            String?
+  municipio         String?
+  regiao            String?
+  postosPesquisados Int
+  precoMedio        Float
+  desvioPadrao      Float?
+  precoMinimo       Float
+  precoMaximo       Float
+  coefVariacao      Float?
+  semana            SemanaAnp      @relation(fields: [semanaId], references: [id], onDelete: Cascade)
+
+  @@unique([semanaId, abrangencia, produto, unidade, localidade])
+  @@index([semanaId, abrangencia, produto])
+  @@index([semanaId, estado, municipio])
+  @@index([semanaId, regiao, produto])
+  @@index([produto, localidade])
+}
