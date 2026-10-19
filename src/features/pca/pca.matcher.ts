@@ -91,35 +91,35 @@ export async function processPcaChunk(jobId: string, _offset: number, requestedL
 
   const exact = await exactByGroup(pending)
   let errors = 0
-  await prisma.$transaction(async (tx) => {
-    for (const item of pending) {
-      try {
-        let ranked = exact.has(item.termoCanonico) ? [{ ...exact.get(item.termoCanonico)!, textual: 1, attributes: 1, activity: 0, recency: Math.min(1, exact.get(item.termoCanonico)!.codigo / 1_000_000), final: 0.95, evidence: { exactCanonical: true } }] as Ranked[] : await localCandidates(item)
-        if (!ranked.length || ranked[0].final < 0.75) {
-          const external = await consultarProviderExterno(item.descricaoNormalizada, item.tipoCatalogo)
-          if (external.length) {
-            const codes = external.map((suggestion) => suggestion.codigo)
-            const valid = item.tipoCatalogo === 'CATMAT' ? await prisma.catmatItem.findMany({ where: { codigoItem: { in: codes } }, select: { codigoItem: true, descricaoItem: true } }) : await prisma.catserItem.findMany({ where: { codigoItem: { in: codes } }, select: { codigoItem: true, nomeServico: true } })
-            ranked = valid.map((row, index) => ({ codigo: row.codigoItem, descricao: 'descricaoItem' in row ? row.descricaoItem : row.nomeServico, tipo: item.tipoCatalogo, textual: 0.75, attributes: 0.75, activity: 0, recency: Math.min(1, row.codigoItem / 1_000_000), final: 0.75, evidence: { origemExterna: true, posicaoExterna: index + 1 } }))
-          }
+  for (const item of pending) {
+    try {
+      let ranked = exact.has(item.termoCanonico) ? [{ ...exact.get(item.termoCanonico)!, textual: 1, attributes: 1, activity: 0, recency: Math.min(1, exact.get(item.termoCanonico)!.codigo / 1_000_000), final: 0.95, evidence: { exactCanonical: true } }] as Ranked[] : await localCandidates(item)
+      if (!ranked.length || ranked[0].final < 0.75) {
+        const external = await consultarProviderExterno(item.descricaoNormalizada, item.tipoCatalogo)
+        if (external.length) {
+          const codes = external.map((suggestion) => suggestion.codigo)
+          const valid = item.tipoCatalogo === 'CATMAT' ? await prisma.catmatItem.findMany({ where: { codigoItem: { in: codes } }, select: { codigoItem: true, descricaoItem: true } }) : await prisma.catserItem.findMany({ where: { codigoItem: { in: codes } }, select: { codigoItem: true, nomeServico: true } })
+          ranked = valid.map((row, index) => ({ codigo: row.codigoItem, descricao: 'descricaoItem' in row ? row.descricaoItem : row.nomeServico, tipo: item.tipoCatalogo, textual: 0.75, attributes: 0.75, activity: 0, recency: Math.min(1, row.codigoItem / 1_000_000), final: 0.75, evidence: { origemExterna: true, posicaoExterna: index + 1 } }))
         }
-        const top = ranked.slice(0, 3)
-        const margin = top.length > 1 ? top[0].final - top[1].final : top.length ? top[0].final : 0
-        const status = item.tipoCatalogo === 'OBRA' ? 'FORA_ESCOPO' : top.length ? confidence(top[0].final, margin, Boolean(item.unidade), top[0].activity > 0) : 'SEM_MATCH'
+      }
+      const top = ranked.slice(0, 3)
+      const margin = top.length > 1 ? top[0].final - top[1].final : top.length ? top[0].final : 0
+      const status = item.tipoCatalogo === 'OBRA' ? 'FORA_ESCOPO' : top.length ? confidence(top[0].final, margin, Boolean(item.unidade), top[0].activity > 0) : 'SEM_MATCH'
+      await prisma.$transaction(async (tx) => {
         await tx.pcaMatcherCandidate.deleteMany({ where: { itemId: item.id } })
         if (top.length) await tx.pcaMatcherCandidate.createMany({ data: top.map((candidate, index) => ({ itemId: item.id, tipoCatalogo: candidate.tipo, codigo: candidate.codigo, descricaoCatalogo: candidate.descricao, posicao: index + 1, scoreTextual: candidate.textual, scoreAtributos: candidate.attributes, scoreAtividade: candidate.activity, scoreRecencia: candidate.recency, scoreFinal: candidate.final, evidencias: { ...candidate.evidence, margemPrimeiroSegundo: margin }, origem: candidate.evidence.origemExterna ? 'IA' : 'LOCAL' })) })
-        await tx.pcaMatcherItem.update({ where: { id: item.id }, data: { status, codigoAprovado: status === 'ALTA_CONFIANCA' ? top[0]?.codigo : null } })
-      } catch (error) {
-        errors += 1
-        await tx.pcaMatcherItem.update({ where: { id: item.id }, data: { status: 'ERRO', erro: error instanceof Error ? error.message : 'Falha ao classificar item.' } })
-      }
+        await tx.pcaMatcherItem.update({ where: { id: item.id }, data: { status, codigoAprovado: status === 'ALTA_CONFIANCA' ? top[0]?.codigo : null, erro: null } })
+      })
+    } catch (error) {
+      errors += 1
+      await prisma.pcaMatcherItem.update({ where: { id: item.id }, data: { status: 'ERRO', erro: error instanceof Error ? error.message : 'Falha ao classificar item.' } })
     }
-    const counts = await tx.pcaMatcherItem.groupBy({ by: ['status'], where: { jobId }, _count: { _all: true } })
-    const processed = counts.filter((row) => !['PENDENTE', 'PROCESSANDO'].includes(row.status)).reduce((sum, row) => sum + row._count._all, 0)
-    const approved = counts.filter((row) => row.status === 'ALTA_CONFIANCA').reduce((sum, row) => sum + row._count._all, 0)
-    const pendingCount = counts.filter((row) => ['PENDENTE', 'PROCESSANDO', 'MEDIA_CONFIANCA', 'BAIXA_CONFIANCA'].includes(row.status)).reduce((sum, row) => sum + row._count._all, 0)
-    await tx.pcaMatcherJob.update({ where: { id: jobId }, data: { processados: processed, aprovados: approved, pendentes: pendingCount, erros: errors } })
-  })
+  }
+  const counts = await prisma.pcaMatcherItem.groupBy({ by: ['status'], where: { jobId }, _count: { _all: true } })
+  const processed = counts.filter((row) => !['PENDENTE', 'PROCESSANDO'].includes(row.status)).reduce((sum, row) => sum + row._count._all, 0)
+  const approved = counts.filter((row) => row.status === 'ALTA_CONFIANCA').reduce((sum, row) => sum + row._count._all, 0)
+  const pendingCount = counts.filter((row) => ['PENDENTE', 'PROCESSANDO', 'MEDIA_CONFIANCA', 'BAIXA_CONFIANCA'].includes(row.status)).reduce((sum, row) => sum + row._count._all, 0)
+  await prisma.pcaMatcherJob.update({ where: { id: jobId }, data: { processados: processed, aprovados: approved, pendentes: pendingCount, erros: errors } })
   const remaining = await prisma.pcaMatcherItem.count({ where: { jobId, status: { in: ['PENDENTE', 'PROCESSANDO'] } } })
   return { jobId, processed: pending.length, nextOffset: remaining ? 0 : null, total: job.totalItens, progress: job.totalItens ? Math.min(100, Math.round(((job.totalItens - remaining) / job.totalItens) * 100)) : 100, status: remaining ? 'PROCESSANDO' : 'CONCLUIDO', errors }
 }
