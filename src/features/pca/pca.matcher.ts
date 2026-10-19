@@ -81,6 +81,8 @@ export async function processPcaChunk(jobId: string, _offset: number, requestedL
   const limit = Math.min(50, Math.max(25, requestedLimit || 35))
   const job = await prisma.pcaMatcherJob.findUnique({ where: { id: jobId }, select: { id: true, totalItens: true } })
   if (!job) throw new Error('Job PCA não encontrado.')
+  // Recupera itens deixados PROCESSANDO por uma requisição que expirou.
+  await prisma.pcaMatcherItem.updateMany({ where: { jobId, status: 'PROCESSANDO' }, data: { status: 'PENDENTE' } })
   const pending = await prisma.$transaction(async (tx) => {
     const rows = await tx.pcaMatcherItem.findMany({ where: { jobId, status: 'PENDENTE' }, orderBy: [{ sourceSheet: 'asc' }, { sourceRow: 'asc' }], take: limit, select: { id: true, termoCanonico: true, descricaoNormalizada: true, tipoCatalogo: true, unidade: true, atributos: true } }) as PendingItem[]
     if (rows.length) await tx.pcaMatcherItem.updateMany({ where: { id: { in: rows.map((row) => row.id) }, status: 'PENDENTE' }, data: { status: 'PROCESSANDO' } })
