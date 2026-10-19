@@ -656,3 +656,131 @@ model AnpPreco {
   @@index([semanaId, regiao, produto])
   @@index([produto, localidade])
 }
+
+enum PcaMatcherJobStatus {
+  PENDENTE
+  PROCESSANDO
+  CONCLUIDO
+  CONCLUIDO_COM_ERROS
+  ERRO
+}
+
+enum PcaMatcherItemStatus {
+  PENDENTE
+  PROCESSANDO
+  ALTA_CONFIANCA
+  MEDIA_CONFIANCA
+  BAIXA_CONFIANCA
+  REVISAO
+  SEM_MATCH
+  FORA_ESCOPO
+  ERRO
+}
+
+enum PcaMatcherCatalogType {
+  CATMAT
+  CATSER
+  OBRA
+  INDEFINIDO
+}
+
+enum PcaMatcherCandidateSource {
+  LOCAL
+  API
+  IA
+}
+
+model PcaMatcherJob {
+  id              String            @id @default(cuid())
+  status          PcaMatcherJobStatus @default(PENDENTE)
+  sourceFileName  String?           @map("source_file_name")
+  sourceMimeType  String?           @map("source_mime_type")
+  objectKey       String?           @map("object_key")
+  hashSha256      String            @unique @map("hash_sha256") @db.VarChar(64)
+  tamanhoBytes    Int               @map("tamanho_bytes")
+  originalContent Bytes?            @map("original_content")
+  totalItens      Int               @default(0) @map("total_itens")
+  processados     Int               @default(0)
+  aprovados       Int               @default(0)
+  pendentes       Int               @default(0)
+  erros           Int               @default(0)
+  algoritmoVersao String            @default("pca-v1") @map("algoritmo_versao")
+  catalogoVersao  String?           @map("catalogo_versao")
+  erro            String?           @db.Text
+  criadoEm        DateTime          @default(now()) @map("criado_em")
+  iniciadoEm      DateTime?         @map("iniciado_em")
+  concluidoEm     DateTime?         @map("concluido_em")
+  atualizadoEm    DateTime          @updatedAt @map("atualizado_em")
+  itens           PcaMatcherItem[]
+
+  @@index([status])
+  @@index([hashSha256])
+  @@map("pca_matcher_jobs")
+}
+
+model PcaMatcherItem {
+  id                 String                @id @default(cuid())
+  jobId              String                @map("job_id")
+  sourceSheet        String                @map("source_sheet")
+  sourceRow          Int                   @map("source_row")
+  originalRow        Json                  @map("original_row")
+  descricaoOriginal  String                @map("descricao_original") @db.Text
+  descricaoNormalizada String              @map("descricao_normalizada") @db.Text
+  termoCanonico      String                @map("termo_canonico") @db.Text
+  tipoCatalogo       PcaMatcherCatalogType @default(INDEFINIDO) @map("tipo_catalogo")
+  unidade            String?
+  quantidade         Float?
+  classe             String?
+  atributos          Json?
+  status             PcaMatcherItemStatus  @default(PENDENTE)
+  codigoAprovado    Int?                  @map("codigo_aprovado")
+  erro              String?               @db.Text
+  criadoEm          DateTime              @default(now()) @map("criado_em")
+  atualizadoEm      DateTime              @updatedAt @map("atualizado_em")
+  job               PcaMatcherJob         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidates        PcaMatcherCandidate[]
+  decision          PcaMatcherDecision?
+
+  @@unique([jobId, sourceSheet, sourceRow])
+  @@index([jobId, status])
+  @@index([jobId, termoCanonico])
+  @@index([tipoCatalogo, termoCanonico])
+  @@map("pca_matcher_items")
+}
+
+model PcaMatcherCandidate {
+  id                String                     @id @default(cuid())
+  itemId            String                     @map("item_id")
+  tipoCatalogo      PcaMatcherCatalogType      @map("tipo_catalogo")
+  codigo            Int
+  descricaoCatalogo String                     @map("descricao_catalogo") @db.Text
+  posicao           Int
+  scoreTextual      Float                      @map("score_textual")
+  scoreAtributos    Float                      @map("score_atributos")
+  scoreAtividade    Float                      @map("score_atividade")
+  scoreRecencia     Float                      @map("score_recencia")
+  scoreFinal        Float                      @map("score_final")
+  evidencias        Json?
+  origem            PcaMatcherCandidateSource  @default(LOCAL)
+  criadoEm          DateTime                   @default(now()) @map("criado_em")
+  item              PcaMatcherItem             @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, tipoCatalogo, codigo])
+  @@index([itemId, posicao])
+  @@index([tipoCatalogo, codigo])
+  @@map("pca_matcher_candidates")
+}
+
+model PcaMatcherDecision {
+  id               String        @id @default(cuid())
+  itemId           String        @unique @map("item_id")
+  codigoAprovado   Int?          @map("codigo_aprovado")
+  justificativa    String?       @db.Text
+  ator             String?
+  algoritmoVersao  String        @map("algoritmo_versao")
+  criadoEm         DateTime      @default(now()) @map("criado_em")
+  item             PcaMatcherItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([codigoAprovado])
+  @@map("pca_matcher_decisions")
+}
