@@ -43,6 +43,22 @@ export async function listPcaItems(id: string, page: number, limit: number, stat
   return { items, total, page, limit, totalPages: Math.ceil(total / limit) }
 }
 
+export async function resetPcaJob(id: string) {
+  const job = await prisma.pcaMatcherJob.findUnique({ where: { id }, select: { id: true, totalItens: true } })
+  if (!job) throw new Error('Job não encontrado.')
+  await prisma.$transaction(async (tx) => {
+    const items = await tx.pcaMatcherItem.findMany({ where: { jobId: id }, select: { id: true } })
+    const itemIds = items.map((item) => item.id)
+    if (itemIds.length) {
+      await tx.pcaMatcherDecision.deleteMany({ where: { itemId: { in: itemIds } } })
+      await tx.pcaMatcherCandidate.deleteMany({ where: { itemId: { in: itemIds } } })
+      await tx.pcaMatcherItem.updateMany({ where: { id: { in: itemIds } }, data: { status: 'PENDENTE', codigoAprovado: null, erro: null } })
+    }
+    await tx.pcaMatcherJob.update({ where: { id }, data: { status: 'PENDENTE', processados: 0, aprovados: 0, pendentes: job.totalItens, erros: 0, erro: null, iniciadoEm: null, concluidoEm: null } })
+  })
+  return { id, totalItens: job.totalItens, status: 'PENDENTE' }
+}
+
 export async function decidePcaItems(id: string, input: { itemId?: string; codigo?: number; justificativa?: string; ator?: string; aprovarAlta?: boolean }) {
   if (input.aprovarAlta) {
     const items = await prisma.pcaMatcherItem.findMany({ where: { jobId: id, status: 'ALTA_CONFIANCA' }, include: { candidates: { where: { posicao: 1 }, take: 1 } } })

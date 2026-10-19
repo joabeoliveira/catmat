@@ -74,17 +74,24 @@ async function exactByGroup(items: PendingItem[]) {
   const groups = new Map<PcaCatalogType, Set<string>>()
   for (const item of items) { const values = groups.get(item.tipoCatalogo) || new Set<string>(); values.add(item.termoCanonico); groups.set(item.tipoCatalogo, values) }
   const rows = (await Promise.all([...groups.entries()].map(([type, values]) => exactMatches(type, [...values])))).flat()
-  return new Map(rows.map((row) => [canonical(row.descricao), row]))
+  return new Map(rows.map((row) => [`${row.tipo}:${canonical(row.descricao)}`, row]))
 }
 
 export async function processPcaChunk(jobId: string, _offset: number, requestedLimit: number): Promise<PcaChunkResult> {
   const limit = Math.min(50, Math.max(25, requestedLimit || 35))
   const job = await prisma.pcaMatcherJob.findUnique({ where: { id: jobId }, select: { id: true, totalItens: true } })
   if (!job) throw new Error('Job PCA não encontrado.')
-  // Recupera itens deixados PROCESSANDO por uma requisição que expirou.
-  await prisma.pcaMatcherItem.updateMany({ where: { jobId, status: 'PROCESSANDO' }, data: { status: 'PENDENTE' } })
+  // Recupera somente itens abandonados por uma requisição que expirou.
+  await prisma.pcaMatcherItem.updateMany({ where: { jobId, status: 'PROCESSANDO', atualizadoEm: { lt: new Date(Date.now() - 10 * 60 * 1000) } }, data: { status: 'PENDENTE' } })
   const pending = await prisma.$transaction(async (tx) => {
-    const rows = await tx.pcaMatcherItem.findMany({ where: { jobId, status: 'PENDENTE' }, orderBy: [{ sourceSheet: 'asc' }, { sourceRow: 'asc' }], take: limit, select: { id: true, termoCanonico: true, descricaoNormalizada: true, tipoCatalogo: true, unidade: true, atributos: true } }) as PendingItem[]
+    const claimed = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "pca_matcher_items"
+      WHERE "job_id" = ${jobId} AND "status" = 'PENDENTE'::"PcaMatcherItemStatus"
+      ORDER BY "source_sheet" ASC, "source_row" ASC
+      FOR UPDATE SKIP LOCKED
+      LIMIT ${limit}
+    `)
+    const rows = await tx.pcaMatcherItem.findMany({ where: { id: { in: claimed.map((row) => row.id) }, status: 'PENDENTE' }, select: { id: true, termoCanonico: true, descricaoNormalizada: true, tipoCatalogo: true, unidade: true, atributos: true } }) as PendingItem[]
     if (rows.length) await tx.pcaMatcherItem.updateMany({ where: { id: { in: rows.map((row) => row.id) }, status: 'PENDENTE' }, data: { status: 'PROCESSANDO' } })
     await tx.pcaMatcherJob.update({ where: { id: jobId }, data: { status: 'PROCESSANDO', iniciadoEm: new Date() } })
     return rows
@@ -95,8 +102,8 @@ export async function processPcaChunk(jobId: string, _offset: number, requestedL
   let errors = 0
   for (const item of pending) {
     try {
-      let ranked = exact.has(item.termoCanonico) ? [{ ...exact.get(item.termoCanonico)!, textual: 1, attributes: 1, activity: 0, recency: Math.min(1, exact.get(item.termoCanonico)!.codigo / 1_000_000), final: 0.95, evidence: { exactCanonical: true } }] as Ranked[] : await localCandidates(item)
-      if (!ranked.length || ranked[0].final < 0.75) {
+        let ranked = exact.has(`${item.tipoCatalogo}:${item.termoCanonico}`) ? [{ ...exact.get(`${item.tipoCatalogo}:${item.termoCanonico}`)!, textual: 1, attributes: 1, activity: 0, recency: Math.min(1, exact.get(`${item.tipoCatalogo}:${item.termoCanonico}`)!.codigo / 1_000_000), final: 0.95, evidence: { exactCanonical: true } }] as Ranked[] : await localCandidates(item)
+      if ((!ranked.length || ranked[0].final < 0.75) && (item.tipoCatalogo === 'CATMAT' || item.tipoCatalogo === 'CATSER')) {
         const external = await consultarProviderExterno(item.descricaoNormalizada, item.tipoCatalogo)
         if (external.length) {
           const codes = external.map((suggestion) => suggestion.codigo)
@@ -131,8 +138,10 @@ export async function processPcaChunk(jobId: string, _offset: number, requestedL
   const counts = await prisma.pcaMatcherItem.groupBy({ by: ['status'], where: { jobId }, _count: { _all: true } })
   const processed = counts.filter((row) => !['PENDENTE', 'PROCESSANDO'].includes(row.status)).reduce((sum, row) => sum + row._count._all, 0)
   const approved = counts.filter((row) => row.status === 'ALTA_CONFIANCA').reduce((sum, row) => sum + row._count._all, 0)
-  const pendingCount = counts.filter((row) => ['PENDENTE', 'PROCESSANDO', 'MEDIA_CONFIANCA', 'BAIXA_CONFIANCA'].includes(row.status)).reduce((sum, row) => sum + row._count._all, 0)
-  await prisma.pcaMatcherJob.update({ where: { id: jobId }, data: { processados: processed, aprovados: approved, pendentes: pendingCount, erros: errors } })
+  const pendingCount = counts.filter((row) => ['PENDENTE', 'PROCESSANDO', 'MEDIA_CONFIANCA', 'BAIXA_CONFIANCA', 'REVISAO'].includes(row.status)).reduce((sum, row) => sum + row._count._all, 0)
+  const totalErrors = counts.find((row) => row.status === 'ERRO')?._count._all || 0
   const remaining = await prisma.pcaMatcherItem.count({ where: { jobId, status: { in: ['PENDENTE', 'PROCESSANDO'] } } })
-  return { jobId, processed: pending.length, nextOffset: remaining ? 0 : null, total: job.totalItens, progress: job.totalItens ? Math.min(100, Math.round(((job.totalItens - remaining) / job.totalItens) * 100)) : 100, status: remaining ? 'PROCESSANDO' : 'CONCLUIDO', errors }
+  const completed = remaining === 0
+  await prisma.pcaMatcherJob.update({ where: { id: jobId }, data: { status: completed ? (totalErrors ? 'CONCLUIDO_COM_ERROS' : 'CONCLUIDO') : 'PROCESSANDO', processados: processed, aprovados: approved, pendentes: pendingCount, erros: totalErrors, ...(completed ? { concluidoEm: new Date() } : {}) } })
+  return { jobId, processed: pending.length, nextOffset: remaining ? 0 : null, total: job.totalItens, progress: job.totalItens ? Math.min(100, Math.round(((job.totalItens - remaining) / job.totalItens) * 100)) : 100, status: completed ? (totalErrors ? 'CONCLUIDO_COM_ERROS' : 'CONCLUIDO') : 'PROCESSANDO', errors }
 }
