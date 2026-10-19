@@ -101,7 +101,18 @@ export async function processPcaChunk(jobId: string, _offset: number, requestedL
         if (external.length) {
           const codes = external.map((suggestion) => suggestion.codigo)
           const valid = item.tipoCatalogo === 'CATMAT' ? await prisma.catmatItem.findMany({ where: { codigoItem: { in: codes } }, select: { codigoItem: true, descricaoItem: true } }) : await prisma.catserItem.findMany({ where: { codigoItem: { in: codes } }, select: { codigoItem: true, nomeServico: true } })
-          ranked = valid.map((row, index) => ({ codigo: row.codigoItem, descricao: 'descricaoItem' in row ? row.descricaoItem : row.nomeServico, tipo: item.tipoCatalogo, textual: 0.75, attributes: 0.75, activity: 0, recency: Math.min(1, row.codigoItem / 1_000_000), final: 0.75, evidence: { origemExterna: true, posicaoExterna: index + 1 } }))
+            const queryTerms = terms(item.descricaoNormalizada)
+            const requiredAttributes = (item.atributos || {}) as PcaAttributes
+            const hasRequiredAttributes = [...(requiredAttributes.measures || []), ...(requiredAttributes.concentrations || []), ...(requiredAttributes.voltages || []), ...(requiredAttributes.dimensions || [])].length > 0
+            ranked = valid.map((row, index) => {
+              const descricao = 'descricaoItem' in row ? row.descricaoItem : row.nomeServico
+              const candidateTerms = terms(descricao)
+              const overlap = [...queryTerms].filter((term) => candidateTerms.has(term)).length / Math.max(queryTerms.size, 1)
+              const attrs = attributeScore(requiredAttributes, descricao)
+              const textual = overlap
+              const final = textual * 0.85 + (hasRequiredAttributes ? attrs.score * 0.15 : 0)
+              return { codigo: row.codigoItem, descricao, tipo: item.tipoCatalogo, textual, attributes: attrs.score, activity: 0, recency: Math.min(1, row.codigoItem / 1_000_000), final, evidence: { origemExterna: true, posicaoExterna: index + 1, sobreposicaoTermos: overlap, conflitoAtributos: attrs.conflict } }
+            }).filter((candidate) => candidate.textual >= 0.25 && (!hasRequiredAttributes || !candidate.evidence.conflitoAtributos)).sort((a, b) => b.final - a.final || b.codigo - a.codigo).slice(0, 3)
         }
       }
       const top = ranked.slice(0, 3)
