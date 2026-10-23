@@ -26,6 +26,8 @@ Saldo é consultado ao selecionar o item, sem ser inferido de dados ausentes.
 - O checkpoint é separado por janela de vigência e registra a próxima página,
   total de páginas, contagens, status e último erro.
 - Para consultar os últimos checkpoints: `npm run sync:arp-adesao -- --status=1`.
+- Para um teste limitado a páginas, use `--paginas=N`; por exemplo,
+  `--pagina=250 --paginas=10` processa as páginas 250 a 259.
 - A consulta por código não implica importação de todas as suas atas.
 
 ## Validação

@@ -63,7 +63,7 @@ async function atualizarCheckpoint(id, dados) {
   await prisma.arpCargaAdesao.update({ where: { id }, data: dados })
 }
 
-export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial, dataInicialMin, dataInicialMax, reiniciar = false } = {}) {
+export async function sincronizar({ limite = 0, intervalo = 15000, paginas = 0, paginaInicial, dataInicialMin, dataInicialMax, reiniciar = false } = {}) {
   janelaAtual = janela(dataInicialMin, dataInicialMax)
   let inicioJanela = data(janelaAtual.inicio)
   let fimJanela = data(janelaAtual.fim)
@@ -90,6 +90,7 @@ export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial
   let removidos = deveRetomar ? checkpointExistente.removidos : 0
   let elegiveisSessao = 0
   let totalPaginas = deveRetomar ? (checkpointExistente.totalPaginas || pagina) : pagina
+  const ultimaPaginaDaExecucao = paginas > 0 ? pagina + paginas - 1 : Number.MAX_SAFE_INTEGER
 
   const checkpoint = await prisma.arpCargaAdesao.upsert({
     where: { dataVigenciaInicialMin_dataVigenciaInicialMax: { dataVigenciaInicialMin: inicioJanela, dataVigenciaInicialMax: fimJanela } },
@@ -100,7 +101,7 @@ export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial
   console.log(`ARP adesão: janela ${janelaAtual.inicio} até ${janelaAtual.fim}; retomando da página ${pagina}; intervalo ${intervalo}ms.`)
 
   try {
-    while (pagina <= totalPaginas) {
+    while (pagina <= totalPaginas && pagina <= ultimaPaginaDaExecucao) {
       const resposta = await consultarPagina(pagina, intervalo)
       totalPaginas = Number(resposta.totalPaginas || 1)
       const itens = resposta.resultado || []
@@ -135,7 +136,7 @@ export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial
       await atualizarCheckpoint(checkpoint.id, { proximaPagina: pagina, totalPaginas, recebidos, elegiveis, gravados, removidos, status: 'CONCLUIDA', erro: null, concluidaEm: new Date() })
     }
 
-    return { recebidos, armazenados: gravados, disponiveis: elegiveis, elegiveis, gravados, removidos, paginaFinal: pagina, totalPaginas, cargaCompleta, janela: janelaAtual, retomada: deveRetomar }
+    return { recebidos, armazenados: gravados, disponiveis: elegiveis, elegiveis, gravados, removidos, paginaFinal: pagina - 1, paginasProcessadas: paginas > 0 ? Math.min(paginas, Math.max(0, pagina - (paginaInicial || (deveRetomar ? checkpointExistente.proximaPagina : 1)))) : null, totalPaginas, cargaCompleta, janela: janelaAtual, retomada: deveRetomar }
   } catch (error) {
     await atualizarCheckpoint(checkpoint.id, { proximaPagina: pagina, totalPaginas, recebidos, elegiveis, gravados, removidos, status: 'ERRO', erro: error instanceof Error ? error.message : String(error) })
     throw error
@@ -150,6 +151,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const pagina = argumento('pagina', '')
     const resultado = await sincronizar({
       limite: Number(argumento('limite', 0)), intervalo: Number(argumento('intervalo', 15000)),
+      paginas: Number(argumento('paginas', 0)),
       paginaInicial: pagina ? Number(pagina) : undefined,
       dataInicialMin: argumento('data-inicial-min', ''), dataInicialMax: argumento('data-inicial-max', ''),
       reiniciar: argumento('reiniciar', '0') === '1',
