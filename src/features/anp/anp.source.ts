@@ -1,9 +1,6 @@
 import { createHash } from 'node:crypto'
 
-type PeriodoAnp = {
-  dataInicio: Date
-  dataFim: Date
-}
+type PeriodoAnp = { dataInicio: Date; dataFim: Date }
 
 type DownloadAnp = PeriodoAnp & {
   buffer: Buffer
@@ -14,10 +11,7 @@ type DownloadAnp = PeriodoAnp & {
 }
 
 function normalizarUtc(data: Date): Date {
-  if (Number.isNaN(data.getTime())) {
-    throw new Error('Data inválida.')
-  }
-
+  if (Number.isNaN(data.getTime())) throw new Error('Data inválida.')
   return new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate()))
 }
 
@@ -33,33 +27,35 @@ export function calcularSemanaAnterior(referencia: Date = new Date()): PeriodoAn
   // A ANP publica as semanas de domingo a sábado.
   const domingoAtual = new Date(data)
   domingoAtual.setUTCDate(domingoAtual.getUTCDate() - data.getUTCDay())
-
   const dataInicio = new Date(domingoAtual)
   dataInicio.setUTCDate(dataInicio.getUTCDate() - 7)
-
   const dataFim = new Date(dataInicio)
   dataFim.setUTCDate(dataFim.getUTCDate() + 6)
-
   return { dataInicio, dataFim }
 }
 
 export function calcularSemanaPorDatas(dataInicio: Date, dataFim: Date): PeriodoAnp {
   const inicio = normalizarUtc(dataInicio)
   const fim = normalizarUtc(dataFim)
-
-  if (inicio.getTime() > fim.getTime()) {
-    throw new Error('dataInicio deve ser menor ou igual a dataFim.')
-  }
-
+  if (inicio.getTime() > fim.getTime()) throw new Error('dataInicio deve ser menor ou igual a dataFim.')
   return { dataInicio: inicio, dataFim: fim }
 }
 
+// Formato atualmente publicado pela ANP: YYYY_MM_DD-YYYY_MM_DD.
 export function montarUrlAnp(dataInicio: Date, dataFim: Date): string {
+  const periodo = calcularSemanaPorDatas(dataInicio, dataFim)
+  const inicio = formatarData(periodo.dataInicio).replaceAll('-', '_')
+  const fim = formatarData(periodo.dataFim).replaceAll('-', '_')
+  const ano = periodo.dataInicio.getUTCFullYear()
+  return `https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/precos/arquivos-lpc/${ano}/resumo_semanal_lpc_${inicio}-${fim}.xlsx`
+}
+
+// Compatibilidade com arquivos publicados no formato anterior.
+function montarUrlAnpLegada(dataInicio: Date, dataFim: Date): string {
   const periodo = calcularSemanaPorDatas(dataInicio, dataFim)
   const inicio = formatarData(periodo.dataInicio)
   const fim = formatarData(periodo.dataFim)
   const ano = periodo.dataInicio.getUTCFullYear()
-
   return `https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/precos/arquivos-lpc/${ano}/resumo_semanal_lpc_${inicio}_${fim}.xlsx`
 }
 
@@ -68,45 +64,37 @@ export function montarObjectKey(dataInicio: Date, dataFim: Date): string {
   const inicio = formatarData(periodo.dataInicio)
   const fim = formatarData(periodo.dataFim)
   const ano = periodo.dataInicio.getUTCFullYear()
-
   return `${ano}/resumo_semanal_lpc_${inicio}_${fim}.xlsx`
 }
 
 export async function baixarXlsxAnp(dataInicio: Date, dataFim: Date): Promise<DownloadAnp> {
   const periodo = calcularSemanaPorDatas(dataInicio, dataFim)
-  const url = montarUrlAnp(periodo.dataInicio, periodo.dataFim)
+  const urls = [montarUrlAnp(periodo.dataInicio, periodo.dataFim), montarUrlAnpLegada(periodo.dataInicio, periodo.dataFim)]
   const objectKey = montarObjectKey(periodo.dataInicio, periodo.dataFim)
   const timeoutMs = Number(process.env.ANP_TIMEOUT_MS) || 60000
 
-  let response: Response
-  try {
-    response = await fetch(url, {
-      headers: {
-        'User-Agent': process.env.ANP_USER_AGENT || 'sistema-precos-anp/1.0',
-      },
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Timeout ao baixar arquivo XLSX da ANP após ${timeoutMs} ms: ${url}`, { cause: error })
+  for (const url of urls) {
+    let response: Response
+    try {
+      response = await fetch(url, {
+        headers: { 'User-Agent': process.env.ANP_USER_AGENT || 'sistema-precos-anp/1.0' },
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Timeout ao baixar arquivo XLSX da ANP após ${timeoutMs} ms: ${url}`, { cause: error })
+      }
+      throw error
     }
 
-    throw error
+    // O formato atual é tentado primeiro; só um 404 dispara o fallback legado.
+    if (response.status === 404 && url !== urls[urls.length - 1]) continue
+    if (response.status !== 200) throw new Error(`Falha ao baixar arquivo XLSX da ANP: HTTP ${response.status} — ${url}`)
+
+    const buffer = Buffer.from(await response.arrayBuffer())
+    const hashSha256 = createHash('sha256').update(buffer).digest('hex')
+    return { ...periodo, buffer, url, objectKey, hashSha256, tamanhoBytes: buffer.length }
   }
 
-  if (response.status !== 200) {
-    throw new Error(`Falha ao baixar arquivo XLSX da ANP: HTTP ${response.status} — ${url}`)
-  }
-
-  const buffer = Buffer.from(await response.arrayBuffer())
-  const hashSha256 = createHash('sha256').update(buffer).digest('hex')
-
-  return {
-    ...periodo,
-    buffer,
-    url,
-    objectKey,
-    hashSha256,
-    tamanhoBytes: buffer.length,
-  }
+  throw new Error(`Falha ao baixar arquivo XLSX da ANP: HTTP 404 — ${urls.join(' ou ')}`)
 }
