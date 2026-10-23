@@ -59,51 +59,102 @@ async function consultarPagina(pagina, intervalo) {
 
 let janelaAtual
 
-export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial = 1, dataInicialMin, dataInicialMax } = {}) {
+async function atualizarCheckpoint(id, dados) {
+  await prisma.arpCargaAdesao.update({ where: { id }, data: dados })
+}
+
+export async function sincronizar({ limite = 0, intervalo = 15000, paginaInicial, dataInicialMin, dataInicialMax, reiniciar = false } = {}) {
   janelaAtual = janela(dataInicialMin, dataInicialMax)
+  let inicioJanela = data(janelaAtual.inicio)
+  let fimJanela = data(janelaAtual.fim)
   const inicioCarga = new Date()
-  let pagina = paginaInicial
-  let recebidos = 0; let elegiveis = 0; let gravados = 0; let removidos = 0
-  // Ao retomar uma carga, a primeira página consultada pode ser maior que 1.
-  // O laço precisa executar essa consulta para descobrir o total real da API.
-  let totalPaginas = Math.max(1, paginaInicial)
-  console.log(`ARP adesão: janela ${janelaAtual.inicio} até ${janelaAtual.fim}; intervalo ${intervalo}ms.`)
-
-  while (pagina <= totalPaginas) {
-    const resposta = await consultarPagina(pagina, intervalo)
-    totalPaginas = Number(resposta.totalPaginas || 1)
-    const itens = resposta.resultado || []
-    recebidos += itens.length
-    const hojeTexto = new Date().toISOString().slice(0, 10)
-    const itensValidosPagina = itens.filter((item) => item.numeroControlePncpAta && item.numeroItem && !item.itemExcluido && numero(item.maximoAdesao) > 0 && String(item.dataVigenciaFinal || '').slice(0, 10) >= hojeTexto)
-    const restanteElegiveis = limite > 0 ? limite - elegiveis : Number.MAX_SAFE_INTEGER
-    const itensParaGravar = itensValidosPagina.slice(0, restanteElegiveis)
-    elegiveis += itensParaGravar.length
-    for (const item of itensParaGravar) {
-      const dados = itemData(item, inicioCarga)
-      await prisma.arpItemAdesao.upsert({
-        where: { numeroControlePncpAta_numeroItem: { numeroControlePncpAta: dados.numeroControlePncpAta, numeroItem: dados.numeroItem } },
-        create: { ...dados, id: `${dados.numeroControlePncpAta}-${dados.numeroItem}` },
-        update: dados,
-      })
-      gravados += 1
+  const paginaInformada = Number.isInteger(paginaInicial) && paginaInicial >= 1
+  let checkpointExistente = await prisma.arpCargaAdesao.findUnique({
+    where: { dataVigenciaInicialMin_dataVigenciaInicialMax: { dataVigenciaInicialMin: inicioJanela, dataVigenciaInicialMax: fimJanela } },
+  })
+  if (!reiniciar && !paginaInformada && !dataInicialMin && !dataInicialMax && !checkpointExistente) {
+    checkpointExistente = await prisma.arpCargaAdesao.findFirst({
+      where: { status: { not: 'CONCLUIDA' } }, orderBy: { atualizadaEm: 'desc' },
+    })
+    if (checkpointExistente) {
+      inicioJanela = checkpointExistente.dataVigenciaInicialMin
+      fimJanela = checkpointExistente.dataVigenciaInicialMax
+      janelaAtual = { inicio: inicioJanela.toISOString().slice(0, 10), fim: fimJanela.toISOString().slice(0, 10) }
     }
-    console.log(`Página ${pagina}/${totalPaginas}: ${itens.length} recebidos, ${itensParaGravar.length} elegíveis gravados.`)
-    if (limite > 0 && elegiveis >= limite) break
-    pagina += 1
   }
+  const deveRetomar = !reiniciar && !paginaInformada && checkpointExistente && checkpointExistente.status !== 'CONCLUIDA'
+  let pagina = paginaInformada ? paginaInicial : (deveRetomar ? checkpointExistente.proximaPagina : 1)
+  let recebidos = deveRetomar ? checkpointExistente.recebidos : 0
+  let elegiveis = deveRetomar ? checkpointExistente.elegiveis : 0
+  let gravados = deveRetomar ? checkpointExistente.gravados : 0
+  let removidos = deveRetomar ? checkpointExistente.removidos : 0
+  let elegiveisSessao = 0
+  let totalPaginas = deveRetomar ? (checkpointExistente.totalPaginas || pagina) : pagina
 
-  const hoje = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`)
-  const resultado = await prisma.arpItemAdesao.deleteMany({ where: { dataVigenciaFinal: { lt: hoje } } })
-  removidos = resultado.count
-  const cargaCompleta = limite === 0 && paginaInicial === 1 && pagina > totalPaginas
-  /* Registros vigentes não são removidos por não aparecerem como disponíveis.
-     O máximo e a situação de exclusão permanecem atualizados na própria tabela. */
-  return { recebidos, armazenados: gravados, disponiveis: elegiveis, elegiveis, gravados, removidos, paginaFinal: pagina, totalPaginas, cargaCompleta, janela: janelaAtual }
+  const checkpoint = await prisma.arpCargaAdesao.upsert({
+    where: { dataVigenciaInicialMin_dataVigenciaInicialMax: { dataVigenciaInicialMin: inicioJanela, dataVigenciaInicialMax: fimJanela } },
+    create: { dataVigenciaInicialMin: inicioJanela, dataVigenciaInicialMax: fimJanela, proximaPagina: pagina, totalPaginas, status: 'PROCESSANDO', recebidos, elegiveis, gravados, removidos, erro: null, concluidaEm: null },
+    update: { proximaPagina: pagina, totalPaginas, status: 'PROCESSANDO', recebidos, elegiveis, gravados, removidos, erro: null, concluidaEm: null },
+  })
+
+  console.log(`ARP adesão: janela ${janelaAtual.inicio} até ${janelaAtual.fim}; retomando da página ${pagina}; intervalo ${intervalo}ms.`)
+
+  try {
+    while (pagina <= totalPaginas) {
+      const resposta = await consultarPagina(pagina, intervalo)
+      totalPaginas = Number(resposta.totalPaginas || 1)
+      const itens = resposta.resultado || []
+      recebidos += itens.length
+      const hojeTexto = new Date().toISOString().slice(0, 10)
+      const itensValidosPagina = itens.filter((item) => item.numeroControlePncpAta && item.numeroItem && !item.itemExcluido && numero(item.maximoAdesao) > 0 && String(item.dataVigenciaFinal || '').slice(0, 10) >= hojeTexto)
+      const restanteElegiveis = limite > 0 ? limite - elegiveisSessao : Number.MAX_SAFE_INTEGER
+      const itensParaGravar = itensValidosPagina.slice(0, Math.max(0, restanteElegiveis))
+      elegiveis += itensParaGravar.length
+      elegiveisSessao += itensParaGravar.length
+      for (const item of itensParaGravar) {
+        const dados = itemData(item, inicioCarga)
+        await prisma.arpItemAdesao.upsert({
+          where: { numeroControlePncpAta_numeroItem: { numeroControlePncpAta: dados.numeroControlePncpAta, numeroItem: dados.numeroItem } },
+          create: { ...dados, id: `${dados.numeroControlePncpAta}-${dados.numeroItem}` },
+          update: dados,
+        })
+        gravados += 1
+      }
+      pagina += 1
+      const atingiuLimite = limite > 0 && elegiveisSessao >= limite
+      await atualizarCheckpoint(checkpoint.id, { proximaPagina: pagina, totalPaginas, recebidos, elegiveis, gravados, removidos, status: 'PROCESSANDO', erro: null })
+      console.log(`Página ${pagina - 1}/${totalPaginas}: ${itens.length} recebidos, ${itensParaGravar.length} elegíveis gravados. Próxima: ${pagina}.`)
+      if (atingiuLimite) break
+    }
+
+    const cargaCompleta = limite === 0 && pagina > totalPaginas
+    if (cargaCompleta) {
+      const hoje = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`)
+      const resultado = await prisma.arpItemAdesao.deleteMany({ where: { dataVigenciaFinal: { lt: hoje } } })
+      removidos = resultado.count
+      await atualizarCheckpoint(checkpoint.id, { proximaPagina: pagina, totalPaginas, recebidos, elegiveis, gravados, removidos, status: 'CONCLUIDA', erro: null, concluidaEm: new Date() })
+    }
+
+    return { recebidos, armazenados: gravados, disponiveis: elegiveis, elegiveis, gravados, removidos, paginaFinal: pagina, totalPaginas, cargaCompleta, janela: janelaAtual, retomada: deveRetomar }
+  } catch (error) {
+    await atualizarCheckpoint(checkpoint.id, { proximaPagina: pagina, totalPaginas, recebidos, elegiveis, gravados, removidos, status: 'ERRO', erro: error instanceof Error ? error.message : String(error) })
+    throw error
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const resultado = await sincronizar({ limite: Number(argumento('limite', 0)), intervalo: Number(argumento('intervalo', 15000)), paginaInicial: Number(argumento('pagina', 1)), dataInicialMin: argumento('data-inicial-min', ''), dataInicialMax: argumento('data-inicial-max', '') })
-  console.log(JSON.stringify(resultado, null, 2))
+  if (argumento('status', '0') === '1') {
+    const checkpoints = await prisma.arpCargaAdesao.findMany({ orderBy: { atualizadaEm: 'desc' }, take: 20 })
+    console.log(JSON.stringify(checkpoints, null, 2))
+  } else {
+    const pagina = argumento('pagina', '')
+    const resultado = await sincronizar({
+      limite: Number(argumento('limite', 0)), intervalo: Number(argumento('intervalo', 15000)),
+      paginaInicial: pagina ? Number(pagina) : undefined,
+      dataInicialMin: argumento('data-inicial-min', ''), dataInicialMax: argumento('data-inicial-max', ''),
+      reiniciar: argumento('reiniciar', '0') === '1',
+    })
+    console.log(JSON.stringify(resultado, null, 2))
+  }
   await prisma.$disconnect()
 }

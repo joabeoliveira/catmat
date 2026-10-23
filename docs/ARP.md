@@ -20,8 +20,12 @@ Saldo é consultado ao selecionar o item, sem ser inferido de dados ausentes.
 - A API de origem é pública e não recebe chave.
 - `POST /api/arp/sincronizar?pagina=N` atualiza um lote de cabeçalhos e retorna
   `proximaPagina`. A rotina não executa uma varredura global dentro da requisição.
-- A atualização diária agendada e a retomada persistente de uma carga global
-  ainda não estão implementadas. O botão avança os lotes na sessão atual.
+- A carga global pelo script `sync:arp-adesao` mantém checkpoint persistente no
+  PostgreSQL. Sem `--pagina`, uma carga interrompida retoma da próxima página;
+  use `--reiniciar=1` para começar novamente a janela desde a página 1.
+- O checkpoint é separado por janela de vigência e registra a próxima página,
+  total de páginas, contagens, status e último erro.
+- Para consultar os últimos checkpoints: `npm run sync:arp-adesao -- --status=1`.
 - A consulta por código não implica importação de todas as suas atas.
 
 ## Validação

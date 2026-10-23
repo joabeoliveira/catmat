@@ -356,6 +356,28 @@ model ArpItemAdesao {
   @@map("arp_itens_adesao")
 }
 
+// Checkpoint persistente da carga paginada de itens disponíveis para adesão.
+model ArpCargaAdesao {
+  id                       String   @id @default(cuid())
+  dataVigenciaInicialMin  DateTime @map("data_vigencia_inicial_min") @db.Date
+  dataVigenciaInicialMax  DateTime @map("data_vigencia_inicial_max") @db.Date
+  proximaPagina            Int      @default(1) @map("proxima_pagina")
+  totalPaginas             Int?     @map("total_paginas")
+  status                   String   @default("PROCESSANDO")
+  recebidos                Int      @default(0)
+  elegiveis                Int      @default(0)
+  gravados                 Int      @default(0)
+  removidos                Int      @default(0)
+  erro                     String?  @db.Text
+  iniciadaEm               DateTime @default(now()) @map("iniciada_em")
+  atualizadaEm             DateTime @updatedAt @map("atualizada_em")
+  concluidaEm              DateTime? @map("concluida_em")
+
+  @@unique([dataVigenciaInicialMin, dataVigenciaInicialMax])
+  @@index([status])
+  @@map("arp_cargas_adesao")
+}
+
 model CnpjEmpresa {
   id                    String    @id @default(cuid())
   cnpj                  String    @unique
